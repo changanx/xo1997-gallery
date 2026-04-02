@@ -1,0 +1,12 @@
+# Virtual environment
+.venv/
+
+# IDE
+.idea/
+
+# Generated files
+*.pptx
+history/
+
+# Database (can be regenerated)
+employee.db
