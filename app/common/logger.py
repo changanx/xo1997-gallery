@@ -9,6 +9,8 @@ from datetime import datetime
 from typing import Optional, Dict, Any
 from logging.handlers import TimedRotatingFileHandler
 
+from PySide6.QtCore import QObject, Signal
+
 
 class JsonFormatter(logging.Formatter):
     """JSON 格式日志格式化器"""
@@ -56,6 +58,36 @@ class TextFormatter(logging.Formatter):
         return base
 
 
+class LogSignalEmitter(QObject):
+    """日志信号发射器"""
+    log_received = Signal(str, str)  # (level, formatted_message)
+
+
+class QtSignalHandler(logging.Handler):
+    """将日志转发到 Qt 信号的 Handler"""
+
+    def __init__(self):
+        super().__init__()
+        self._emitter = LogSignalEmitter()
+        self._formatter = TextFormatter(
+            "%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+            datefmt="%H:%M:%S",
+        )
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """发射日志信号"""
+        try:
+            msg = self.format(record)
+            self._emitter.log_received.emit(record.levelname, msg)
+        except Exception:
+            pass
+
+    @property
+    def emitter(self) -> LogSignalEmitter:
+        """获取信号发射器"""
+        return self._emitter
+
+
 class LoggerManager:
     """日志管理器"""
 
@@ -75,6 +107,7 @@ class LoggerManager:
         self._console_handler: Optional[logging.StreamHandler] = None
         self._file_handler: Optional[TimedRotatingFileHandler] = None
         self._json_handler: Optional[TimedRotatingFileHandler] = None
+        self._signal_handler: Optional[QtSignalHandler] = None
         self._current_level: int = logging.DEBUG
         self._log_dir: Path = Path.home() / ".hr-tools" / "logs"
         self._backup_count: int = 7
@@ -150,6 +183,11 @@ class LoggerManager:
             self._json_handler.setFormatter(JsonFormatter())
             self._logger.addHandler(self._json_handler)
 
+        # Qt 信号输出（用于 UI 日志窗口）
+        self._signal_handler = QtSignalHandler()
+        self._signal_handler.setLevel(logging.DEBUG)
+        self._logger.addHandler(self._signal_handler)
+
         return self._logger
 
     def get_logger(self) -> logging.Logger:
@@ -198,6 +236,10 @@ class LoggerManager:
     def get_backup_count(self) -> int:
         """获取日志保留天数"""
         return self._backup_count
+
+    def get_signal_handler(self) -> Optional[QtSignalHandler]:
+        """获取 Qt 信号 Handler"""
+        return self._signal_handler
 
 
 class StructuredLogger:
@@ -293,6 +335,11 @@ def set_backup_count(count: int) -> None:
 def get_backup_count() -> int:
     """获取日志保留天数"""
     return _manager.get_backup_count()
+
+
+def get_signal_handler() -> Optional[QtSignalHandler]:
+    """获取 Qt 信号 Handler（用于 UI 连接）"""
+    return _manager.get_signal_handler()
 
 
 # 全局日志器（兼容旧代码）
