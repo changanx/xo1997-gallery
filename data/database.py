@@ -5,6 +5,10 @@ import sqlite3
 from typing import Optional
 from contextlib import contextmanager
 
+from app.common.logger import get_logger
+
+logger = get_logger()
+
 
 class Database:
     """SQLite 数据库连接管理器 - 单例模式"""
@@ -29,10 +33,12 @@ class Database:
     def connection(self) -> sqlite3.Connection:
         """获取数据库连接"""
         if self._connection is None:
+            logger.debug("创建数据库连接", extra={"db_path": self.db_path})
             self._connection = sqlite3.connect(self.db_path, check_same_thread=False)
             self._connection.row_factory = sqlite3.Row
             self._enable_foreign_keys()
             self._init_schema()
+            logger.info("数据库初始化完成")
         return self._connection
 
     def _enable_foreign_keys(self):
@@ -108,7 +114,8 @@ class Database:
         try:
             yield conn
             conn.commit()
-        except Exception:
+        except Exception as e:
+            logger.error("事务失败，执行回滚", extra={"error": str(e)})
             conn.rollback()
             raise
 
@@ -117,9 +124,11 @@ class Database:
         if self._connection:
             self._connection.close()
             self._connection = None
+            logger.debug("数据库连接已关闭")
 
     def clear(self):
         """清空所有数据"""
+        logger.info("清空数据库数据")
         self.connection.execute("DELETE FROM employee")
         self.connection.execute("DELETE FROM department")
         self.connection.execute("DELETE FROM chat_message")

@@ -4,6 +4,10 @@
 from pathlib import Path
 from typing import Dict, Any, Callable, List, Optional
 
+from app.common.logger import get_logger
+
+logger = get_logger()
+
 
 class SecurityContext:
     """安全上下文，限制文件操作范围"""
@@ -26,6 +30,10 @@ class SecurityContext:
     def validate_path(self, path: Path) -> tuple[bool, str]:
         """验证路径安全性，返回 (是否安全, 错误信息)"""
         if not self.is_safe_path(path):
+            logger.warning(
+                "路径安全验证失败",
+                extra={"work_dir": str(self.work_directory), "requested_path": str(path)},
+            )
             return False, f"错误: 不允许访问工作目录之外的路径\n工作目录: {self.work_directory}\n请求路径: {path}"
         return True, ""
 

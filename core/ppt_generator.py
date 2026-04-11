@@ -10,6 +10,10 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
 
+from app.common.logger import get_logger
+
+logger = get_logger()
+
 
 class PPTGenerator:
     """组织架构 PPT 生成器"""
@@ -38,6 +42,8 @@ class PPTGenerator:
         Returns:
             (成功与否, 消息)
         """
+        logger.info("开始生成 PPT", extra={"output": output_path, "tree_nodes": len(tree), "stats_count": len(stats)})
+
         try:
             self.prs = Presentation()
             self.prs.slide_width = Inches(13.333)
@@ -49,6 +55,7 @@ class PPTGenerator:
 
             # 计算节点位置
             node_positions = self._calculate_positions(tree)
+            logger.debug("节点位置计算完成", extra={"nodes": len(node_positions)})
 
             # 绘制部门树
             self._draw_tree(slide, tree, node_positions)
@@ -58,9 +65,11 @@ class PPTGenerator:
 
             # 保存文件
             self.prs.save(output_path)
+            logger.info("PPT 生成成功", extra={"output": output_path})
             return True, f"PPT 已生成: {output_path}"
 
         except Exception as e:
+            logger.error("PPT 生成失败", extra={"error": str(e), "output": output_path})
             return False, f"生成失败: {str(e)}"
 
     def _calculate_positions(self, nodes: List[dict]) -> Dict[int, dict]:

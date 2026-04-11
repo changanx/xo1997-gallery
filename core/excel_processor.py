@@ -11,6 +11,9 @@ from data.repositories.department_repository import DepartmentRepository
 from data.repositories.employee_repository import EmployeeRepository
 from data.models.department import Department
 from data.models.employee import Employee
+from app.common.logger import get_logger
+
+logger = get_logger()
 
 
 class ExcelProcessor:
@@ -30,15 +33,20 @@ class ExcelProcessor:
         Returns:
             (成功与否, 消息)
         """
+        logger.info("开始导入 Excel", extra={"file": excel_path})
+
         try:
             path = Path(excel_path)
             if not path.exists():
+                logger.warning("Excel 文件不存在", extra={"file": excel_path})
                 return False, f"文件不存在: {excel_path}"
 
             xls = pd.ExcelFile(excel_path)
+            logger.debug("Excel 文件打开成功", extra={"sheets": xls.sheet_names})
 
             # 清空现有数据
             db.clear()
+            logger.debug("已清空现有数据")
 
             dept_count = 0
             emp_count = 0
@@ -57,6 +65,7 @@ class ExcelProcessor:
                     departments.append(dept)
                 self.dept_repo.save_all(departments)
                 dept_count = len(departments)
+                logger.info("部门数据导入完成", extra={"count": dept_count})
 
             # 导入员工数据
             if 'employee' in xls.sheet_names:
@@ -78,10 +87,13 @@ class ExcelProcessor:
                     employees.append(emp)
                 self.emp_repo.save_all(employees)
                 emp_count = len(employees)
+                logger.info("员工数据导入完成", extra={"count": emp_count})
 
+            logger.info("Excel 导入成功", extra={"departments": dept_count, "employees": emp_count})
             return True, f"导入成功：{dept_count} 个部门，{emp_count} 名员工"
 
         except Exception as e:
+            logger.error("Excel 导入失败", extra={"error": str(e), "file": excel_path})
             return False, f"导入失败: {str(e)}"
 
     def get_department_tree(self) -> List[dict]:

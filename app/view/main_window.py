@@ -1,7 +1,7 @@
 """
 主窗口
 """
-from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme
+from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
 from PySide6.QtCore import Qt
 
 from .excel_ppt_interface import ExcelPPTInterface
@@ -42,7 +42,8 @@ class MainWindow(FluentWindow):
         self.addSubInterface(
             self.aiSettingsInterface,
             FIF.SETTING,
-            'AI 设置'
+            'AI 设置',
+            position=NavigationItemPosition.BOTTOM
         )
 
     def initWindow(self):

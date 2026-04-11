@@ -2,6 +2,7 @@
 AI 模型配置页面
 """
 from typing import Optional
+import logging
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
@@ -21,6 +22,8 @@ from PySide6.QtWidgets import QComboBox
 from core.model_manager import MODEL_PROVIDERS, ModelProvider
 from data.models.ai_config import AIModelConfig
 from data.repositories.ai_config_repository import AIModelConfigRepository
+from app.common.logger import set_level, set_backup_count, get_log_dir
+from app.common.log_config import log_config_manager
 
 
 class ModelConfigDialog(MessageBoxBase):
@@ -285,6 +288,9 @@ class AISettingsInterface(ScrollArea):
         self.configLayout.setSpacing(8)
         self.configLayout.setContentsMargins(0, 0, 0, 0)
 
+        # 日志配置区域
+        self._initLogConfigUI()
+
         # 布局
         self.vBoxLayout.setSpacing(20)
         self.vBoxLayout.setContentsMargins(36, 20, 36, 36)
@@ -294,6 +300,7 @@ class AISettingsInterface(ScrollArea):
         self.vBoxLayout.addWidget(self.subtitleLabel)
         self.vBoxLayout.addWidget(self.addBtn)
         self.vBoxLayout.addWidget(self.configContainer)
+        self.vBoxLayout.addWidget(self.logConfigCard)
         self.vBoxLayout.addStretch()
 
         # 滚动设置
@@ -303,6 +310,82 @@ class AISettingsInterface(ScrollArea):
 
         self.setObjectName('aiSettingsInterface')
         self.view.setObjectName('view')
+
+    def _initLogConfigUI(self):
+        """初始化日志配置 UI"""
+        self.logConfigCard = CardWidget(self)
+        layout = QVBoxLayout(self.logConfigCard)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(16)
+
+        # 标题
+        titleLabel = SubtitleLabel("日志配置", self)
+        layout.addWidget(titleLabel)
+
+        # 日志级别
+        levelLayout = QHBoxLayout()
+        levelLayout.addWidget(BodyLabel("日志级别:"))
+
+        self.logLevelCombo = ComboBox(self)
+        self.logLevelCombo.addItems(["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+        # 设置当前级别
+        current_level = log_config_manager.get_config().level
+        self.logLevelCombo.setCurrentText(logging.getLevelName(current_level))
+        self.logLevelCombo.currentTextChanged.connect(self._onLogLevelChanged)
+        levelLayout.addWidget(self.logLevelCombo)
+        levelLayout.addStretch()
+        layout.addLayout(levelLayout)
+
+        # 日志保留天数
+        backupLayout = QHBoxLayout()
+        backupLayout.addWidget(BodyLabel("保留天数:"))
+
+        self.logBackupSpin = SpinBox(self)
+        self.logBackupSpin.setRange(1, 90)
+        self.logBackupSpin.setValue(log_config_manager.get_config().backup_count)
+        self.logBackupSpin.valueChanged.connect(self._onBackupDaysChanged)
+        backupLayout.addWidget(self.logBackupSpin)
+        backupLayout.addStretch()
+        layout.addLayout(backupLayout)
+
+        # 打开日志目录按钮
+        openDirBtn = PushButton(FIF.FOLDER, "打开日志目录", self)
+        openDirBtn.clicked.connect(self._onOpenLogDir)
+        layout.addWidget(openDirBtn)
+
+    def _onLogLevelChanged(self, level_name: str):
+        """日志级别改变"""
+        level = getattr(logging, level_name, logging.INFO)
+        set_level(level)
+        log_config_manager.set_level(level)
+        InfoBar.success(
+            title="已更新",
+            content=f"日志级别已设置为 {level_name}",
+            parent=self
+        )
+
+    def _onBackupDaysChanged(self, days: int):
+        """日志保留天数改变"""
+        set_backup_count(days)
+        log_config_manager.set_backup_count(days)
+
+    def _onOpenLogDir(self):
+        """打开日志目录"""
+        import os
+        import subprocess
+
+        log_dir = get_log_dir()
+        if log_dir.exists():
+            if os.name == 'nt':  # Windows
+                os.startfile(str(log_dir))
+            else:  # macOS / Linux
+                subprocess.run(['xdg-open', str(log_dir)])
+        else:
+            InfoBar.warning(
+                title="提示",
+                content="日志目录尚不存在",
+                parent=self
+            )
 
     def _loadConfigs(self):
         """加载配置列表"""

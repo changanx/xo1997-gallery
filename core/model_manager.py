@@ -7,6 +7,9 @@ import json
 import uuid
 
 from data.models.ai_config import AIModelConfig
+from app.common.logger import get_logger
+
+logger = get_logger()
 
 
 @dataclass
@@ -119,9 +122,12 @@ class ModelManager:
         for tool in self._tools:
             self._tool_executors[tool.name] = tool.func
 
+        logger.info("工作目录已设置", extra={"directory": directory, "tools_count": len(self._tools)})
+
         # 如果已有模型，绑定工具
         if self._current_model and self._tools:
             self._current_model = self._current_model.bind_tools(self._tools)
+            logger.debug("工具已绑定到当前模型")
 
     def get_work_directory(self) -> Optional[str]:
         """获取当前工作目录"""
@@ -228,12 +234,14 @@ class ModelManager:
 
     def set_current_model(self, config: AIModelConfig) -> None:
         """设置当前使用的模型"""
+        logger.info("切换模型", extra={"provider": config.provider, "model": config.model_name})
         self._current_model = self.create_chat_model(config)
         self._current_config = config
 
         # 如果已有工具，绑定到新模型
         if self._current_model and self._tools:
             self._current_model = self._current_model.bind_tools(self._tools)
+            logger.debug("工具已绑定到新模型")
 
     def get_current_model(self) -> Optional[Any]:
         """获取当前模型"""
@@ -505,12 +513,17 @@ class ModelManager:
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> str:
         """执行工具"""
         if name not in self._tool_executors:
+            logger.warning("未知的工具调用", extra={"tool": name})
             return f"错误: 未知的工具 '{name}'"
 
         try:
+            logger.info("执行工具", extra={"tool": name, "args": args})
             executor = self._tool_executors[name]
-            return str(executor(**args))
+            result = str(executor(**args))
+            logger.debug("工具执行完成", extra={"tool": name, "result_length": len(result)})
+            return result
         except Exception as e:
+            logger.error("工具执行失败", extra={"tool": name, "error": str(e)})
             return f"工具执行错误 ({name}): {str(e)}"
 
 
