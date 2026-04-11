@@ -5,3 +5,9 @@ openpyxl>=3.1.0
 python-pptx>=1.0.0
 pytest>=7.0.0
 pytest-qt>=4.2.0
+
+# LangChain 依赖
+langchain>=0.2.0
+langchain-openai>=0.1.0
+langchain-anthropic>=0.1.0
+langchain-ollama>=0.1.0

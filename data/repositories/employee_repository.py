@@ -41,15 +41,14 @@ class EmployeeRepository:
         else:
             db.connection.execute(
                 """
-                UPDATE employee SET name = ?, employee_number = ?,
-                    department_level1 = ?, department_level2 = ?,
-                    department_level3 = ?, department_level4 = ?,
-                    department_level5 = ?, rank = ?, category = ?
-                WHERE id = ?
+                INSERT OR REPLACE INTO employee (id, name, employee_number,
+                    department_level1, department_level2, department_level3,
+                    department_level4, department_level5, rank, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (emp.name, emp.employee_number, emp.department_level1,
+                (emp.id, emp.name, emp.employee_number, emp.department_level1,
                  emp.department_level2, emp.department_level3, emp.department_level4,
-                 emp.department_level5, emp.rank, emp.category, emp.id)
+                 emp.department_level5, emp.rank, emp.category)
             )
         db.connection.commit()
         return emp

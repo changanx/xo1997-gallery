@@ -38,7 +38,7 @@ class DepartmentRepository:
         return [Department.from_row(row) for row in cursor.fetchall()]
 
     def save(self, dept: Department) -> Department:
-        """保存部门"""
+        """保存部门（INSERT OR REPLACE）"""
         if dept.id is None:
             cursor = db.connection.execute(
                 "INSERT INTO department (parent_id, name, level) VALUES (?, ?, ?)",
@@ -47,8 +47,8 @@ class DepartmentRepository:
             dept.id = cursor.lastrowid
         else:
             db.connection.execute(
-                "UPDATE department SET parent_id = ?, name = ?, level = ? WHERE id = ?",
-                (dept.parent_id, dept.name, dept.level, dept.id)
+                "INSERT OR REPLACE INTO department (id, parent_id, name, level) VALUES (?, ?, ?, ?)",
+                (dept.id, dept.parent_id, dept.name, dept.level)
             )
         db.connection.commit()
         return dept

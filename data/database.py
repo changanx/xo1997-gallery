@@ -62,8 +62,42 @@ class Database:
                 category TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS ai_model_config (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT 'openai',
+                model_name TEXT NOT NULL,
+                api_key TEXT,
+                base_url TEXT,
+                temperature REAL DEFAULT 0.7,
+                max_tokens INTEGER DEFAULT 2048,
+                extra_params TEXT,
+                is_default INTEGER DEFAULT 0,
+                is_enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_session (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL DEFAULT '新对话',
+                model_config_id INTEGER,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS chat_message (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES chat_session(id) ON DELETE CASCADE
+            );
+
             CREATE INDEX IF NOT EXISTS idx_department_parent ON department(parent_id);
             CREATE INDEX IF NOT EXISTS idx_employee_dept ON employee(department_level3);
+            CREATE INDEX IF NOT EXISTS idx_chat_message_session ON chat_message(session_id);
         """)
         self.connection.commit()
 
@@ -88,6 +122,9 @@ class Database:
         """清空所有数据"""
         self.connection.execute("DELETE FROM employee")
         self.connection.execute("DELETE FROM department")
+        self.connection.execute("DELETE FROM chat_message")
+        self.connection.execute("DELETE FROM chat_session")
+        self.connection.execute("DELETE FROM ai_model_config")
         self.connection.commit()
 
 
