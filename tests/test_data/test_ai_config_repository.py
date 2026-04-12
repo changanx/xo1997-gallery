@@ -3,7 +3,6 @@ AI 配置仓库测试
 """
 import pytest
 
-from data.database import db
 from data.models.ai_config import AIModelConfig, ChatSession, ChatMessage
 from data.repositories.ai_config_repository import (
     AIModelConfigRepository,
@@ -16,8 +15,8 @@ class TestAIModelConfigRepository:
     """AI 模型配置仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据"""
-        db.clear()
+        """每个测试前初始化仓库"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
         self.repo = AIModelConfigRepository()
 
     def test_save_and_find(self):
@@ -95,8 +94,8 @@ class TestChatSessionRepository:
     """聊天会话仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据"""
-        db.clear()
+        """每个测试前初始化仓库"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
         self.repo = ChatSessionRepository()
         self.config_repo = AIModelConfigRepository()
 
@@ -134,8 +133,8 @@ class TestChatMessageRepository:
     """聊天消息仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据"""
-        db.clear()
+        """每个测试前初始化仓库"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
         self.session_repo = ChatSessionRepository()
         self.message_repo = ChatMessageRepository()
 

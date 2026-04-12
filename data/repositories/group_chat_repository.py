@@ -181,27 +181,48 @@ class GroupChatMessageRepository:
         return result if result else 0
 
     def save(self, message: GroupChatMessage) -> GroupChatMessage:
-        """保存消息"""
+        """
+        保存消息
+
+        注意：此方法仅支持插入新消息。如需更新现有消息，请使用 update() 方法。
+
+        Raises:
+            ValueError: 当尝试保存已有 id 的消息时
+        """
+        if message.id is not None:
+            raise ValueError(
+                f"GroupChatMessage.save() 仅支持插入新消息。"
+                f"消息已有 id={message.id}，如需更新请使用 update() 方法。"
+            )
+
         mentioned_models_json = json.dumps(message.mentioned_models) if message.mentioned_models else None
 
-        if message.id is None:
-            cursor = persistent_db.connection.execute(
-                """
-                INSERT INTO group_chat_message (session_id, role, model_config_id, content,
-                    mentioned_models, discussion_round)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (message.session_id, message.role, message.model_config_id,
-                 message.content, mentioned_models_json, message.discussion_round)
-            )
-            message.id = cursor.lastrowid
-            # 更新会话时间
-            persistent_db.connection.execute(
-                "UPDATE group_chat_session SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (message.session_id,)
-            )
+        cursor = persistent_db.connection.execute(
+            """
+            INSERT INTO group_chat_message (session_id, role, model_config_id, content,
+                mentioned_models, discussion_round)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (message.session_id, message.role, message.model_config_id,
+             message.content, mentioned_models_json, message.discussion_round)
+        )
+        message.id = cursor.lastrowid
+        # 更新会话时间
+        persistent_db.connection.execute(
+            "UPDATE group_chat_session SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (message.session_id,)
+        )
         persistent_db.connection.commit()
         return message
+
+    def update_content(self, id: int, content: str) -> bool:
+        """更新消息内容"""
+        cursor = persistent_db.connection.execute(
+            "UPDATE group_chat_message SET content=? WHERE id=?",
+            (content, id)
+        )
+        persistent_db.connection.commit()
+        return cursor.rowcount > 0
 
     def delete_by_session(self, session_id: int) -> int:
         """删除会话的所有消息"""

@@ -44,50 +44,53 @@ class ExcelProcessor:
             xls = pd.ExcelFile(excel_path)
             logger.debug("Excel 文件打开成功", extra={"sheets": xls.sheet_names})
 
-            # 清空现有数据
-            db.clear()
-            logger.debug("已清空现有数据")
-
             dept_count = 0
             emp_count = 0
 
-            # 导入部门数据
-            if 'department' in xls.sheet_names:
-                dept_df = pd.read_excel(xls, sheet_name='department')
-                departments = []
-                for _, row in dept_df.iterrows():
-                    dept = Department(
-                        id=int(row['id']) if pd.notna(row.get('id')) else None,
-                        parent_id=int(row['parent_id']) if pd.notna(row.get('parent_id')) else None,
-                        name=str(row['name']) if pd.notna(row.get('name')) else "",
-                        level=int(row['level']) if pd.notna(row.get('level')) else 0,
-                    )
-                    departments.append(dept)
-                self.dept_repo.save_all(departments)
-                dept_count = len(departments)
-                logger.info("部门数据导入完成", extra={"count": dept_count})
+            # 使用事务保护整个导入过程
+            with db.transaction():
+                # 清空现有数据
+                db.connection.execute("DELETE FROM employee")
+                db.connection.execute("DELETE FROM department")
+                logger.debug("已清空现有数据")
 
-            # 导入员工数据
-            if 'employee' in xls.sheet_names:
-                emp_df = pd.read_excel(xls, sheet_name='employee')
-                employees = []
-                for _, row in emp_df.iterrows():
-                    emp = Employee(
-                        id=int(row['id']) if pd.notna(row.get('id')) else None,
-                        name=str(row['name']) if pd.notna(row.get('name')) else "",
-                        employee_number=str(row.get('employee_number', '')) if pd.notna(row.get('employee_number')) else "",
-                        department_level1=str(row.get('department_level1', '')) if pd.notna(row.get('department_level1')) else "",
-                        department_level2=str(row.get('department_level2', '')) if pd.notna(row.get('department_level2')) else "",
-                        department_level3=str(row.get('department_level3', '')) if pd.notna(row.get('department_level3')) else "",
-                        department_level4=str(row.get('department_level4', '')) if pd.notna(row.get('department_level4')) else "",
-                        department_level5=str(row.get('department_level5', '')) if pd.notna(row.get('department_level5')) else "",
-                        rank=str(row.get('rank', '')) if pd.notna(row.get('rank')) else "",
-                        category=str(row.get('category', '')) if pd.notna(row.get('category')) else "",
-                    )
-                    employees.append(emp)
-                self.emp_repo.save_all(employees)
-                emp_count = len(employees)
-                logger.info("员工数据导入完成", extra={"count": emp_count})
+                # 导入部门数据
+                if 'department' in xls.sheet_names:
+                    dept_df = pd.read_excel(xls, sheet_name='department')
+                    departments = []
+                    for _, row in dept_df.iterrows():
+                        dept = Department(
+                            id=int(row['id']) if pd.notna(row.get('id')) else None,
+                            parent_id=int(row['parent_id']) if pd.notna(row.get('parent_id')) else None,
+                            name=str(row['name']) if pd.notna(row.get('name')) else "",
+                            level=int(row['level']) if pd.notna(row.get('level')) else 0,
+                        )
+                        departments.append(dept)
+                    self.dept_repo.save_all(departments)
+                    dept_count = len(departments)
+                    logger.info("部门数据导入完成", extra={"count": dept_count})
+
+                # 导入员工数据
+                if 'employee' in xls.sheet_names:
+                    emp_df = pd.read_excel(xls, sheet_name='employee')
+                    employees = []
+                    for _, row in emp_df.iterrows():
+                        emp = Employee(
+                            id=int(row['id']) if pd.notna(row.get('id')) else None,
+                            name=str(row['name']) if pd.notna(row.get('name')) else "",
+                            employee_number=str(row.get('employee_number', '')) if pd.notna(row.get('employee_number')) else "",
+                            department_level1=str(row.get('department_level1', '')) if pd.notna(row.get('department_level1')) else "",
+                            department_level2=str(row.get('department_level2', '')) if pd.notna(row.get('department_level2')) else "",
+                            department_level3=str(row.get('department_level3', '')) if pd.notna(row.get('department_level3')) else "",
+                            department_level4=str(row.get('department_level4', '')) if pd.notna(row.get('department_level4')) else "",
+                            department_level5=str(row.get('department_level5', '')) if pd.notna(row.get('department_level5')) else "",
+                            rank=str(row.get('rank', '')) if pd.notna(row.get('rank')) else "",
+                            category=str(row.get('category', '')) if pd.notna(row.get('category')) else "",
+                        )
+                        employees.append(emp)
+                    self.emp_repo.save_all(employees)
+                    emp_count = len(employees)
+                    logger.info("员工数据导入完成", extra={"count": emp_count})
 
             logger.info("Excel 导入成功", extra={"departments": dept_count, "employees": emp_count})
             return True, f"导入成功：{dept_count} 个部门，{emp_count} 名员工"

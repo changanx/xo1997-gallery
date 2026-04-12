@@ -12,7 +12,6 @@ from data.repositories.group_chat_repository import (
 )
 from data.repositories.ai_config_repository import AIModelConfigRepository
 from data.models.ai_config import AIModelConfig
-from data.database import db
 
 
 class TestGroupChatSessionModel:
@@ -110,8 +109,9 @@ class TestGroupChatSessionRepository:
     """群聊会话仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据"""
-        db.clear()
+        """每个测试前初始化仓库"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
+        pass
 
     def test_save_and_find_session(self):
         """测试保存和查找会话"""
@@ -164,8 +164,8 @@ class TestGroupChatParticipantRepository:
     """群聊参与者仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据并创建测试会话和模型配置"""
-        db.clear()
+        """每个测试前创建测试会话和模型配置"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
 
         # 创建会话
         self.session_repo = GroupChatSessionRepository()
@@ -227,8 +227,8 @@ class TestGroupChatMessageRepository:
     """群聊消息仓库测试"""
 
     def setup_method(self):
-        """每个测试前清空数据并创建测试会话和模型配置"""
-        db.clear()
+        """每个测试前创建测试会话和模型配置"""
+        # 数据清理由 conftest.py 的 clean_persistent_db fixture 自动处理
 
         self.session_repo = GroupChatSessionRepository()
         self.session = self.session_repo.save(GroupChatSession(title="测试群聊"))

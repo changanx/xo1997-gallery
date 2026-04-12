@@ -34,8 +34,9 @@ class ChatWorker(QThread):
     finished = Signal()                 # 完成
     error = Signal(str)                 # 错误
 
-    def __init__(self, messages: List[Dict[str, str]], use_tools: bool = False, parent=None):
-        super().__init__(parent)
+    def __init__(self, messages: List[Dict[str, str]], use_tools: bool = False):
+        # 注意：不设置 parent，手动管理生命周期
+        super().__init__()
         self._messages = messages
         self._is_stopped = False
         self._use_tools = use_tools
@@ -230,6 +231,7 @@ class AIChatInterface(ScrollArea):
     def _loadModelConfigs(self):
         """加载模型配置列表"""
         configs = self._config_repo.find_enabled()
+        self.modelCombo.blockSignals(True)  # 临时阻塞信号
         self.modelCombo.clear()
 
         if not configs:
@@ -240,6 +242,7 @@ class AIChatInterface(ScrollArea):
         if not configs:
             self.modelCombo.addItem("请先配置模型")
             self.sendBtn.setEnabled(False)
+            self.modelCombo.blockSignals(False)
             return
 
         self.sendBtn.setEnabled(True)
@@ -250,6 +253,9 @@ class AIChatInterface(ScrollArea):
                 default_idx = i
 
         self.modelCombo.setCurrentIndex(default_idx)
+        self.modelCombo.blockSignals(False)  # 恢复信号
+
+        # 手动触发一次切换
         self._onModelChanged(default_idx)
 
     def _createDefaultConfig(self):
@@ -372,10 +378,21 @@ class AIChatInterface(ScrollArea):
             title = content[:20] + "..." if len(content) > 20 else content
             self._session_repo.update_title(self._current_session.id, title)
 
-        # 启动工作线程
+        # 检查是否有正在运行的 worker
+        if self._worker and self._worker.isRunning():
+            logger.warning("上一个任务仍在运行，请等待完成")
+            InfoBar.warning(
+                title="请稍候",
+                content="上一个请求仍在处理中，请等待完成",
+                duration=2000,
+                parent=self
+            )
+            return
+
+        # 启动工作线程（不设置 parent，手动管理生命周期）
         use_tools = model_manager.has_tools()
         logger.info(f"启动 AI 生成，模型: {config.model_name}, 工具模式: {use_tools}")
-        self._worker = ChatWorker(self._messages, use_tools=use_tools, parent=self)
+        self._worker = ChatWorker(self._messages, use_tools=use_tools)
         self._worker.messageReceived.connect(self._onMessageReceived)
         self._worker.finished.connect(self._onFinished)
         self._worker.error.connect(self._onError)
@@ -459,8 +476,12 @@ class AIChatInterface(ScrollArea):
 
     def _stopGeneration(self):
         """停止生成"""
-        if self._worker:
+        if self._worker and self._worker.isRunning():
             self._worker.stop()
+            # 等待线程结束（最多 2 秒）
+            if not self._worker.wait(2000):
+                logger.warning("Worker 线程未能及时停止")
+            self._worker = None
         self._resetUI()
 
     def _resetUI(self):
@@ -468,8 +489,9 @@ class AIChatInterface(ScrollArea):
         self.sendBtn.setVisible(True)
         self.stopBtn.setVisible(False)
         self.inputEdit.setEnabled(True)
-        self._worker = None
         self._current_message_widget = None
+        # 注意：不立即清空 _worker，让线程自然结束
+        # worker 会在 finished 信号后自动清理
 
     def refreshModels(self):
         """刷新模型列表"""

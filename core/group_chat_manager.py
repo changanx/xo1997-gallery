@@ -260,7 +260,7 @@ class GroupChatManager:
         1. 保存用户消息
         2. 确定回复的模型列表
         3. 并发调用模型
-        4. 串行讨论
+        4. 串行讨论（每轮重新构建上下文）
         5. 判断讨论结束
 
         Yields:
@@ -311,7 +311,7 @@ class GroupChatManager:
         )
         self._message_repo.save(user_msg)
 
-        # 构建上下文
+        # 构建上下文（包含用户消息）
         context = self._build_context(session_id)
 
         # 首批并发回复
@@ -329,6 +329,9 @@ class GroupChatManager:
             discussion_round += 1
             yield {"type": "round_start", "round": discussion_round}
 
+            # 关键修复：每轮讨论前重新构建上下文，包含最新的消息
+            context = self._build_context(session_id)
+
             round_responses = []
             for event in self._call_models_serial(participants, context, discussion_round):
                 yield event
@@ -342,11 +345,12 @@ class GroupChatManager:
         yield {"type": "discussion_end"}
 
     def parse_mentions(self, content: str, participants: List[GroupChatParticipant]) -> List[int]:
-        """解析消息中的 @ 提及"""
+        """解析消息中的 @ 提及（支持中文昵称）"""
         mentioned_ids = []
 
-        # 匹配 @nickname
-        pattern = r'@(\w+)'
+        # 匹配 @nickname，支持中文、字母、数字、下划线
+        # 使用 Unicode 范围匹配中文字符
+        pattern = r'@([\w\u4e00-\u9fff]+)'
         matches = re.findall(pattern, content)
 
         for match in matches:
@@ -450,16 +454,28 @@ class GroupChatManager:
     def _call_models_concurrent(
         self,
         participants: List[GroupChatParticipant],
-        context: List[Dict]
+        context: List[Dict],
+        timeout_per_model: int = 120
     ) -> Generator[Dict[str, Any], None, None]:
-        """并发调用多个模型"""
+        """
+        并发调用多个模型
+
+        Args:
+            participants: 参与者列表
+            context: 对话上下文
+            timeout_per_model: 每个模型的超时时间（秒）
+
+        Yields:
+            模型响应事件
+        """
         session_id = self._current_session_id
         all_participants = self.get_participants(session_id)
 
         def call_model(participant: GroupChatParticipant):
+            """调用单个模型"""
             model_instance = self._session_models[session_id].get(participant.model_config_id)
             if not model_instance:
-                return participant.model_config_id, [], None
+                return participant.model_config_id, [], "模型实例未找到"
 
             system_prompt = self._build_system_prompt(participant, all_participants)
             messages = [{"role": "system", "content": system_prompt}] + context
@@ -477,37 +493,82 @@ class GroupChatManager:
 
             return participant.model_config_id, chunks, None
 
-        # 并发调用
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(participants)) as executor:
-            futures = {
-                executor.submit(call_model, p): p
-                for p in participants
-            }
+        # 限制并发数量，避免资源耗尽
+        max_workers = min(len(participants), 5)
 
-            for future in concurrent.futures.as_completed(futures):
-                participant = futures[future]
-                model_config_id, chunks, error = future.result()
-
-                yield {
-                    "type": "model_response_start",
-                    "model_config_id": model_config_id,
-                    "nickname": participant.nickname
+        try:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(call_model, p): p
+                    for p in participants
                 }
 
-                if error:
+                for future in concurrent.futures.as_completed(futures, timeout=timeout_per_model * len(participants)):
+                    participant = futures[future]
+
                     yield {
-                        "type": "content",
-                        "model_config_id": model_config_id,
-                        "text": f"错误: {error}"
+                        "type": "model_response_start",
+                        "model_config_id": participant.model_config_id,
+                        "nickname": participant.nickname
                     }
-                else:
-                    content = self._process_model_chunks(model_config_id, chunks, participant)
 
-                yield {
-                    "type": "model_response_end",
-                    "model_config_id": model_config_id,
-                    "nickname": participant.nickname
-                }
+                    try:
+                        model_config_id, chunks, error = future.result(timeout=timeout_per_model)
+
+                        if error:
+                            yield {
+                                "type": "content",
+                                "model_config_id": model_config_id,
+                                "text": f"错误: {error}"
+                            }
+                        else:
+                            try:
+                                content = self._process_model_chunks(model_config_id, chunks, participant)
+                                yield {
+                                    "type": "model_response_complete",
+                                    "model_config_id": model_config_id,
+                                    "content": content
+                                }
+                            except Exception as e:
+                                logger.error("处理模型输出失败", extra={
+                                    "model": participant.nickname,
+                                    "error": str(e)
+                                })
+                                yield {
+                                    "type": "content",
+                                    "model_config_id": participant.model_config_id,
+                                    "text": f"处理响应失败: {str(e)}"
+                                }
+                    except concurrent.futures.TimeoutError:
+                        logger.warning("模型调用超时", extra={"model": participant.nickname})
+                        yield {
+                            "type": "content",
+                            "model_config_id": participant.model_config_id,
+                            "text": f"错误: 模型响应超时 ({timeout_per_model}秒)"
+                        }
+                    except Exception as e:
+                        logger.error("Future 执行异常", extra={
+                            "model": participant.nickname,
+                            "error": str(e)
+                        })
+                        yield {
+                            "type": "content",
+                            "model_config_id": participant.model_config_id,
+                            "text": f"错误: {str(e)}"
+                        }
+
+                    yield {
+                        "type": "model_response_end",
+                        "model_config_id": participant.model_config_id,
+                        "nickname": participant.nickname
+                    }
+
+        except concurrent.futures.TimeoutError:
+            logger.error("整体并发调用超时")
+            yield {"type": "content", "text": "错误: 整体响应超时"}
+        except Exception as e:
+            logger.error("并发调用异常", extra={"error": str(e)})
+            yield {"type": "content", "text": f"错误: {str(e)}"}
 
     def _call_models_serial(
         self,
@@ -538,7 +599,12 @@ class GroupChatManager:
 
             try:
                 chunks = list(model_instance.model.stream(messages))
-                self._process_model_chunks(participant.model_config_id, chunks, participant, round_num)
+                content = self._process_model_chunks(participant.model_config_id, chunks, participant, round_num)
+                yield {
+                    "type": "model_response_complete",
+                    "model_config_id": participant.model_config_id,
+                    "content": content
+                }
             except Exception as e:
                 logger.error("模型调用失败", extra={
                     "model": participant.nickname,

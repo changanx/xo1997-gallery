@@ -109,7 +109,25 @@ class LogViewerWindow(QWidget):
         """连接日志信号"""
         handler = get_signal_handler()
         if handler and handler.emitter:
+            # 使用 try-except 安全断开连接
+            try:
+                # 检查是否已连接（通过尝试断开来判断）
+                handler.emitter.log_received.disconnect(self._onLogReceived)
+            except Exception:
+                # 忽略所有异常（包括未连接的情况）
+                pass
+            # 建立新连接
             handler.emitter.log_received.connect(self._onLogReceived)
+
+    def closeEvent(self, event):
+        """窗口关闭时断开信号连接"""
+        handler = get_signal_handler()
+        if handler and handler.emitter:
+            try:
+                handler.emitter.log_received.disconnect(self._onLogReceived)
+            except Exception:
+                pass
+        super().closeEvent(event)
 
     @Slot(str, str)
     def _onLogReceived(self, level: str, message: str):

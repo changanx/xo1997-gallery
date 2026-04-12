@@ -453,9 +453,12 @@ class GroupChatInterface(ScrollArea):
 
     def _clearMentions(self):
         """清除提及"""
-        for cb in self._mention_checkboxes.values():
-            cb.setChecked(False)
+        # 先清空集合，再更新复选框（避免触发 _onMentionChanged 再次修改集合）
         self._mentioned_models.clear()
+        for cb in self._mention_checkboxes.values():
+            cb.blockSignals(True)  # 阻塞信号
+            cb.setChecked(False)
+            cb.blockSignals(False)  # 恢复信号
 
     def _scrollToBottom(self):
         """滚动到底部"""

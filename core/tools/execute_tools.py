@@ -3,40 +3,124 @@
 """
 import subprocess
 import sys
+import shlex
+import platform
 from langchain_core.tools import tool
 from .base import SecurityContext
+from app.common.logger import get_logger
+
+logger = get_logger()
 
 
 def create_execute_tools(security: SecurityContext):
     """创建执行命令工具"""
 
-    # 危险命令黑名单
-    DANGEROUS_PATTERNS = [
-        "rm -rf",
-        "del /",
-        "format",
-        "shutdown",
-        "reboot",
-        "mkfs",
-        "dd if=",
-        "> /dev/",
-        "chmod 777",
-        "chown root",
-        "sudo rm",
-        "sudo apt",
-        "apt-get",
-        "yum install",
-        "pip install",
-        "npm install -g",
-    ]
+    # 安全命令白名单 (命令名 -> 允许的参数)
+    # Windows 和 Unix 命令分开处理
+    is_windows = platform.system() == "Windows"
 
-    def is_dangerous_command(command: str) -> tuple[bool, str]:
-        """检查命令是否危险"""
-        cmd_lower = command.lower()
-        for pattern in DANGEROUS_PATTERNS:
-            if pattern.lower() in cmd_lower:
-                return True, f"检测到危险命令模式: {pattern}"
-        return False, ""
+    SAFE_COMMAND_WHITELIST = {
+        # 通用命令
+        "echo": {"allowed_args": [], "safe_mode": True},  # 仅允许简单输出
+        "pwd": {"allowed_args": []},
+        "whoami": {"allowed_args": []},
+        "date": {"allowed_args": []},
+        "time": {"allowed_args": []},
+    }
+
+    if is_windows:
+        # Windows 特定命令
+        SAFE_COMMAND_WHITELIST.update({
+            "dir": {"allowed_args": []},
+            "type": {"allowed_args": [], "file_in_workdir": True},  # 查看文件内容
+            "cd": {"allowed_args": []},
+            "tree": {"allowed_args": ["/F", "/A"]},
+            "find": {"allowed_args": []},
+            "where": {"allowed_args": []},
+        })
+    else:
+        # Unix/Linux 特定命令
+        SAFE_COMMAND_WHITELIST.update({
+            "ls": {"allowed_args": ["-l", "-a", "-h", "-la", "-lah", "-lh"]},
+            "cat": {"allowed_args": [], "file_in_workdir": True},
+            "head": {"allowed_args": ["-n"], "file_in_workdir": True},
+            "tail": {"allowed_args": ["-n", "-f"], "file_in_workdir": True},
+            "pwd": {"allowed_args": []},
+            "which": {"allowed_args": []},
+            "tree": {"allowed_args": ["-L", "-a"]},
+            "find": {"allowed_args": ["-name", "-type", "-maxdepth"]},
+        })
+
+    def is_safe_command(command: str) -> tuple[bool, str, list]:
+        """
+        检查命令是否安全（白名单模式）
+
+        Returns:
+            (是否安全, 错误信息, 解析后的参数列表)
+        """
+        try:
+            parts = shlex.split(command)
+        except ValueError as e:
+            return False, f"命令解析失败: {str(e)}", []
+
+        if not parts:
+            return False, "空命令", []
+
+        cmd_name = parts[0].lower()
+
+        # 检查白名单
+        if cmd_name not in SAFE_COMMAND_WHITELIST:
+            allowed = ", ".join(sorted(SAFE_COMMAND_WHITELIST.keys()))
+            return False, f"命令 '{cmd_name}' 不在允许列表中。\n允许的命令: {allowed}", []
+
+        cmd_config = SAFE_COMMAND_WHITELIST[cmd_name]
+        allowed_args = cmd_config.get("allowed_args", [])
+
+        # 验证参数
+        args = parts[1:] if len(parts) > 1 else []
+        validated_args = []
+
+        i = 0
+        while i < len(args):
+            arg = args[i]
+
+            # 检查是否是允许的参数
+            if arg.startswith("-"):
+                # 对于带值的参数（如 -n 10）
+                if arg in ["-n", "-L", "-maxdepth", "-name", "-type"]:
+                    if arg in allowed_args:
+                        validated_args.append(arg)
+                        if i + 1 < len(args) and not args[i + 1].startswith("-"):
+                            validated_args.append(args[i + 1])
+                            i += 1
+                    else:
+                        return False, f"参数 '{arg}' 不被允许", []
+                elif arg in allowed_args:
+                    validated_args.append(arg)
+                else:
+                    return False, f"参数 '{arg}' 不被允许", []
+            else:
+                # 非参数（可能是文件路径）
+                if cmd_config.get("file_in_workdir"):
+                    # 验证文件在工作目录内
+                    from pathlib import Path
+                    file_path = security.safe_join(arg)
+                    if not security.is_safe_path(file_path):
+                        return False, f"文件路径不在工作目录内: {arg}", []
+                    validated_args.append(arg)
+                elif cmd_config.get("safe_mode"):
+                    # safe_mode 下只允许简单的非参数值
+                    if not any(c in arg for c in ['|', '&', ';', '$', '`', '>', '<', '\n']):
+                        validated_args.append(arg)
+                    else:
+                        return False, f"参数包含不安全字符: {arg}", []
+                else:
+                    validated_args.append(arg)
+
+            i += 1
+
+        logger.info("命令验证通过", extra={"command": cmd_name, "args": validated_args})
+        return True, "", [cmd_name] + validated_args
 
     @tool
     def run_python(file_path: str, args: str = "") -> str:
@@ -92,25 +176,29 @@ def create_execute_tools(security: SecurityContext):
     def run_command(command: str, timeout: int = 30) -> str:
         """在终端中运行命令。命令将在工作目录中执行。
 
+        注意：为安全起见，只允许执行白名单中的命令。
+        允许的命令包括：ls/dir, cat/type, pwd, echo, head, tail, tree, find, whoami, date, time, which/where
+
         Args:
-            command: 要执行的命令
+            command: 要执行的命令（必须是白名单中的命令）
             timeout: 超时时间（秒），默认 30 秒
 
         Returns:
             命令输出或错误信息
         """
-        # 安全检查
-        is_dangerous, reason = is_dangerous_command(command)
-        if is_dangerous:
-            return f"错误: {reason}\n不允许执行可能破坏系统的命令"
+        # 白名单安全检查
+        is_safe, error_msg, cmd_parts = is_safe_command(command)
+        if not is_safe:
+            return f"错误: {error_msg}"
 
         # 限制超时时间
         timeout = min(timeout, 60)
 
         try:
+            # 不使用 shell=True，直接传递参数列表
             result = subprocess.run(
-                command,
-                shell=True,
+                cmd_parts,
+                shell=False,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -128,6 +216,10 @@ def create_execute_tools(security: SecurityContext):
             return "\n".join(output_lines) if output_lines else "命令执行完成，无输出"
         except subprocess.TimeoutExpired:
             return f"错误: 命令执行超时 ({timeout}秒限制)"
+        except FileNotFoundError:
+            return f"错误: 命令 '{cmd_parts[0]}' 未找到"
+        except PermissionError:
+            return f"错误: 没有权限执行命令"
         except Exception as e:
             return f"执行失败: {str(e)}"
 

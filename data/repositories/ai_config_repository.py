@@ -81,15 +81,26 @@ class AIModelConfigRepository:
         return cursor.rowcount > 0
 
     def set_default(self, id: int) -> bool:
-        """设置默认模型"""
-        persistent_db.connection.execute(
-            "UPDATE ai_model_config SET is_default = 0"
-        )
+        """
+        设置默认模型
+
+        使用单条 SQL 语句确保原子性，避免并发问题
+        """
+        # 使用 CASE 表达式在单条语句中完成更新
         cursor = persistent_db.connection.execute(
-            "UPDATE ai_model_config SET is_default = 1 WHERE id = ?", (id,)
+            """
+            UPDATE ai_model_config
+            SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END
+            """,
+            (id,)
         )
+        # 检查是否设置了指定的模型
+        check_cursor = persistent_db.connection.execute(
+            "SELECT is_default FROM ai_model_config WHERE id = ?", (id,)
+        )
+        result = check_cursor.fetchone()
         persistent_db.connection.commit()
-        return cursor.rowcount > 0
+        return result is not None and result['is_default'] == 1
 
     def count(self) -> int:
         """统计配置数量"""
@@ -167,23 +178,44 @@ class ChatMessageRepository:
         return [ChatMessage.from_row(row) for row in cursor.fetchall()]
 
     def save(self, message: ChatMessage) -> ChatMessage:
-        """保存消息"""
-        if message.id is None:
-            cursor = persistent_db.connection.execute(
-                """
-                INSERT INTO chat_message (session_id, role, content)
-                VALUES (?, ?, ?)
-                """,
-                (message.session_id, message.role, message.content)
+        """
+        保存消息
+
+        注意：此方法仅支持插入新消息。如需更新现有消息，请使用 update() 方法。
+
+        Raises:
+            ValueError: 当尝试保存已有 id 的消息时
+        """
+        if message.id is not None:
+            raise ValueError(
+                f"ChatMessage.save() 仅支持插入新消息。"
+                f"消息已有 id={message.id}，如需更新请使用 update() 方法。"
             )
-            message.id = cursor.lastrowid
-            # 更新会话时间
-            persistent_db.connection.execute(
-                "UPDATE chat_session SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (message.session_id,)
-            )
+
+        cursor = persistent_db.connection.execute(
+            """
+            INSERT INTO chat_message (session_id, role, content)
+            VALUES (?, ?, ?)
+            """,
+            (message.session_id, message.role, message.content)
+        )
+        message.id = cursor.lastrowid
+        # 更新会话时间
+        persistent_db.connection.execute(
+            "UPDATE chat_session SET updated_at=CURRENT_TIMESTAMP WHERE id=?",
+            (message.session_id,)
+        )
         persistent_db.connection.commit()
         return message
+
+    def update_content(self, id: int, content: str) -> bool:
+        """更新消息内容"""
+        cursor = persistent_db.connection.execute(
+            "UPDATE chat_message SET content=? WHERE id=?",
+            (content, id)
+        )
+        persistent_db.connection.commit()
+        return cursor.rowcount > 0
 
     def delete_by_session(self, session_id: int) -> int:
         """删除会话的所有消息"""

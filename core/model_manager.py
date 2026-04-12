@@ -81,6 +81,14 @@ MODEL_PROVIDERS = {
         requires_api_key=False,
         supports_custom_url=True,
     ),
+    "minimax": ModelProvider(
+        id="minimax",
+        name="MiniMax",
+        default_base_url="https://api.minimaxi.com/anthropic",
+        default_models=["MiniMax-M2.7"],
+        requires_api_key=True,
+        supports_custom_url=True,
+    ),
     "custom": ModelProvider(
         id="custom",
         name="自定义",
@@ -216,6 +224,16 @@ class ModelManager:
             return ChatOllama(
                 model=config.model_name,
                 base_url=config.base_url or "http://localhost:11434",
+                **model_kwargs
+            )
+
+        elif provider == "minimax":
+            # MiniMax 兼容 Anthropic API 格式
+            from langchain_anthropic import ChatAnthropic
+            return ChatAnthropic(
+                model=config.model_name,
+                api_key=config.api_key,
+                anthropic_api_url=config.base_url or "https://api.minimaxi.com/anthropic",
                 **model_kwargs
             )
 
@@ -496,28 +514,51 @@ class ModelManager:
         results = []
         for idx, tc in aggregated.items():
             args = {}
+            parse_error = None
             if tc["args_str"]:
                 try:
                     args = json.loads(tc["args_str"])
-                except json.JSONDecodeError:
-                    args = {"raw": tc["args_str"]}
+                except json.JSONDecodeError as e:
+                    parse_error = str(e)
+                    logger.warning(
+                        "工具调用参数 JSON 解析失败",
+                        extra={
+                            "tool": tc["name"],
+                            "args_str": tc["args_str"][:200],  # 截断长字符串
+                            "error": parse_error
+                        }
+                    )
+                    # 返回包含错误信息的结构
+                    args = {
+                        "_parse_error": parse_error,
+                        "_raw_args": tc["args_str"]
+                    }
 
             results.append({
                 "id": tc["id"],
                 "name": tc["name"],
-                "args": args
+                "args": args,
+                "_has_parse_error": parse_error is not None
             })
 
         return results
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> str:
         """执行工具"""
+        # 检查参数解析错误
+        if args.get("_parse_error"):
+            raw_args = args.get("_raw_args", "")
+            logger.error("工具参数解析失败", extra={"tool": name, "raw_args": raw_args[:200]})
+            return f"错误: 工具 '{name}' 的参数解析失败。\n原始参数: {raw_args[:100]}\n请检查模型输出格式。"
+
         if name not in self._tool_executors:
             logger.warning("未知的工具调用", extra={"tool": name})
             return f"错误: 未知的工具 '{name}'"
 
         try:
-            logger.info("执行工具", extra={"tool": name, "args": args})
+            # 脱敏日志：移除可能的敏感信息
+            safe_args = {k: v for k, v in args.items() if not k.startswith("_")}
+            logger.info("执行工具", extra={"tool": name, "args": safe_args})
             executor = self._tool_executors[name]
             result = str(executor(**args))
             logger.debug("工具执行完成", extra={"tool": name, "result_length": len(result)})

@@ -138,15 +138,31 @@ class PersistentDatabase:
             storage_config_manager.ensure_data_dir()
             self._connection = sqlite3.connect(str(db_path), check_same_thread=False)
             self._connection.row_factory = sqlite3.Row
-            self._enable_foreign_keys(self._connection)
+            self._enable_optimizations(self._connection)
             self._init_persistent_schema(self._connection)
             self._db_path = db_path
             logger.info("持久化数据库初始化完成", extra={"db_path": str(db_path)})
 
         return self._connection
 
+    def _enable_optimizations(self, conn: sqlite3.Connection):
+        """
+        启用数据库优化设置
+        - 外键约束
+        - WAL 模式（支持并发读写）
+        - 忙等待超时
+        """
+        conn.execute("PRAGMA foreign_keys = ON")
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")  # 5 秒等待超时
+            logger.debug("WAL 模式已启用")
+        except Exception as e:
+            # WAL 模式可能在某些情况下不可用（如网络驱动器）
+            logger.warning("无法启用 WAL 模式，使用默认模式", extra={"error": str(e)})
+
     def _enable_foreign_keys(self, conn: sqlite3.Connection):
-        """启用外键约束"""
+        """启用外键约束（兼容旧调用）"""
         conn.execute("PRAGMA foreign_keys = ON")
 
     def _init_persistent_schema(self, conn: sqlite3.Connection):

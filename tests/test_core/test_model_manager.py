@@ -49,7 +49,7 @@ class TestModelProviders:
     def test_get_all_providers(self, manager):
         """测试获取所有提供商"""
         providers = manager.get_all_providers()
-        assert len(providers) == 8  # 预定义的 8 个提供商
+        assert len(providers) == 9  # 预定义的 9 个提供商
 
     def test_provider_attributes(self, manager):
         """测试提供商属性"""
@@ -345,9 +345,11 @@ class TestAggregateToolCalls:
 
         result = manager._aggregate_tool_calls(chunks)
 
-        # 无效 JSON 应该作为原始字符串存储
+        # 无效 JSON 应该返回包含错误信息的结构
         assert len(result) == 1
-        assert "raw" in result[0]["args"]
+        assert "_parse_error" in result[0]["args"]
+        assert "_raw_args" in result[0]["args"]
+        assert result[0]["args"]["_raw_args"] == "not valid json"
 
 
 class TestExecuteTool:
