@@ -421,10 +421,11 @@ class ModelManager:
                         result = self._execute_tool(tc["name"], tc["args"])
                         yield {"type": "tool_result", "name": tc["name"], "result": result}
 
-                        # 添加消息到历史
+                        # 添加消息到历史（过滤内部字段）
+                        clean_tc = {k: v for k, v in tc.items() if not k.startswith("_")}
                         lc_messages.append(AIMessage(
                             content="",
-                            tool_calls=[tc]
+                            tool_calls=[clean_tc]
                         ))
                         lc_messages.append(ToolMessage(
                             content=result,
