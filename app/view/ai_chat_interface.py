@@ -305,13 +305,33 @@ class AIChatInterface(ScrollArea):
 
     def _newSession(self):
         """新建会话"""
-        self._current_session = ChatSession()
-        config = self.modelCombo.currentData()
-        if config:
-            self._current_session.model_config_id = config.id
-        self._current_session = self._session_repo.save(self._current_session)
-        self._messages = []
-        self._clearMessages()
+        try:
+            # 先保存旧的会话状态（如果需要）
+            old_session = self._current_session
+
+            # 创建新会话
+            self._current_session = ChatSession()
+            config = self.modelCombo.currentData()
+            if config:
+                self._current_session.model_config_id = config.id
+
+            # 保存到数据库
+            self._current_session = self._session_repo.save(self._current_session)
+            self._messages = []
+            self._clearMessages()
+            logger.info("创建新会话", extra={"session_id": self._current_session.id})
+
+        except Exception as e:
+            logger.error("创建会话失败", extra={"error": str(e)})
+            # 恢复旧会话状态
+            if old_session:
+                self._current_session = old_session
+            InfoBar.error(
+                title="错误",
+                content=f"创建会话失败: {str(e)}",
+                duration=3000,
+                parent=self
+            )
 
     def _clearMessages(self):
         """清空消息区域"""

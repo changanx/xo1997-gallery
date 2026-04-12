@@ -241,6 +241,72 @@ completed_phase: 2
 
 ---
 
+## 阶段三：代码质量改进（P2）✅ 已完成
+
+### 3.1 PPT 生成路径验证 ✅
+
+**文件：** `core/ppt_generator.py`
+
+**修复方案：**
+- [x] 检查输出目录是否存在
+- [x] 验证路径是有效目录
+- [x] 添加权限错误处理
+
+---
+
+### 3.2 Excel 列名验证 ✅
+
+**文件：** `core/excel_processor.py`
+
+**修复方案：**
+- [x] 添加 `_validate_columns` 方法
+- [x] 定义必需列（REQUIRED_DEPT_COLUMNS, REQUIRED_EMP_COLUMNS）
+- [x] 导入前验证列名
+- [x] 允许空数据通过验证
+
+---
+
+### 3.3 数据模型验证 ✅
+
+**文件：** `data/models/ai_config.py`
+
+**修复方案：**
+- [x] `from_row` 中验证 extra_params 类型
+- [x] 类型转换（float/int）
+
+---
+
+### 3.4 JSON 解析日志 ✅
+
+**文件：** `data/models/ai_config.py`, `data/models/group_chat.py`
+
+**修复方案：**
+- [x] JSON 解析失败时记录警告日志
+- [x] 包含原始数据片段便于调试
+
+---
+
+### 3.5 敏感信息脱敏 ✅
+
+**文件：** `core/model_manager.py`
+
+**修复方案：**
+- [x] 添加 `sanitize_value` 函数
+- [x] 截断长字符串
+- [x] 日志中脱敏工具参数
+
+---
+
+### 3.6 会话状态同步 ✅
+
+**文件：** `app/view/ai_chat_interface.py`
+
+**修复方案：**
+- [x] 会话创建失败时恢复旧会话状态
+- [x] 显示错误提示
+
+---
+
 ## 阶段二：稳定性问题（P1）
 
 预计耗时：3-4 小时

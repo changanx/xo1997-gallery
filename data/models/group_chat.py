@@ -6,6 +6,10 @@ from typing import Optional, List
 import sqlite3
 import json
 
+from app.common.logger import get_logger
+
+logger = get_logger()
+
 
 @dataclass
 class GroupChatSession:
@@ -91,8 +95,12 @@ class GroupChatMessage:
         if row['mentioned_models']:
             try:
                 mentioned_models = json.loads(row['mentioned_models'])
-            except json.JSONDecodeError:
-                pass
+                if not isinstance(mentioned_models, list):
+                    logger.warning("mentioned_models 不是有效的列表", extra={"value": str(mentioned_models)[:100]})
+                    mentioned_models = []
+            except json.JSONDecodeError as e:
+                logger.warning("mentioned_models JSON 解析失败", extra={"error": str(e), "raw": str(row['mentioned_models'])[:100]})
+                mentioned_models = []
 
         return cls(
             id=row['id'],

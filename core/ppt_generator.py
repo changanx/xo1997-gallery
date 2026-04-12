@@ -45,6 +45,22 @@ class PPTGenerator:
         logger.info("开始生成 PPT", extra={"output": output_path, "tree_nodes": len(tree), "stats_count": len(stats)})
 
         try:
+            # 验证输出路径
+            output = Path(output_path)
+            parent_dir = output.parent
+
+            # 检查父目录是否存在
+            if not parent_dir.exists():
+                return False, f"输出目录不存在: {parent_dir}"
+
+            # 检查父目录是否是有效目录
+            if not parent_dir.is_dir():
+                return False, f"输出路径的父路径不是一个有效目录: {parent_dir}"
+
+            # 检查文件扩展名
+            if output.suffix.lower() != '.pptx':
+                logger.warning("输出文件扩展名不是 .pptx", extra={"path": output_path})
+
             self.prs = Presentation()
             self.prs.slide_width = Inches(13.333)
             self.prs.slide_height = Inches(7.5)
@@ -68,6 +84,9 @@ class PPTGenerator:
             logger.info("PPT 生成成功", extra={"output": output_path})
             return True, f"PPT 已生成: {output_path}"
 
+        except PermissionError:
+            logger.error("PPT 生成失败 - 无写入权限", extra={"output": output_path})
+            return False, f"没有写入权限: {output_path}"
         except Exception as e:
             logger.error("PPT 生成失败", extra={"error": str(e), "output": output_path})
             return False, f"生成失败: {str(e)}"

@@ -247,15 +247,23 @@ class TestErrorHandling:
 
     def test_invalid_ppt_output_path(self):
         """测试无效 PPT 输出路径"""
+        import platform
+
+        # 使用真正无法写入的路径
+        if platform.system() == "Windows":
+            invalid_path = "Z:\\nonexistent_drive\\output.pptx"
+        else:
+            invalid_path = "/nonexistent_drive/output.pptx"
+
         generator = PPTGenerator()
         success, message = generator.generate(
             tree=[{'id': 1, 'name': 'Test', 'children': []}],
             stats=[],
-            output_path="/invalid/path/output.pptx"
+            output_path=invalid_path
         )
 
         assert success is False
-        assert "失败" in message
+        assert "失败" in message or "不存在" in message
 
     def test_tool_execution_with_invalid_path(self, temp_work_dir):
         """测试工具执行无效路径"""

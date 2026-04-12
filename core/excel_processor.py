@@ -15,6 +15,10 @@ from app.common.logger import get_logger
 
 logger = get_logger()
 
+# 必需的列名定义
+REQUIRED_DEPT_COLUMNS = ['id', 'parent_id', 'name', 'level']
+REQUIRED_EMP_COLUMNS = ['id', 'name']
+
 
 class ExcelProcessor:
     """Excel 数据处理"""
@@ -22,6 +26,32 @@ class ExcelProcessor:
     def __init__(self):
         self.dept_repo = DepartmentRepository()
         self.emp_repo = EmployeeRepository()
+
+    def _validate_columns(self, df: pd.DataFrame, required: List[str], sheet_name: str) -> Tuple[bool, str]:
+        """
+        验证 DataFrame 是否包含必需的列
+
+        Args:
+            df: DataFrame
+            required: 必需列名列表
+            sheet_name: 工作表名称（用于错误消息）
+
+        Returns:
+            (是否有效, 错误消息)
+        """
+        # 空数据（0 行）是允许的
+        if df.empty:
+            return True, ""
+
+        # 检查缺失的列
+        df_columns = set(df.columns.str.lower())
+        missing = [col for col in required if col.lower() not in df_columns]
+
+        if missing:
+            available = list(df.columns)
+            return False, f"工作表 '{sheet_name}' 缺少必需列: {', '.join(missing)}\n可用列: {', '.join(available)}"
+
+        return True, ""
 
     def import_excel(self, excel_path: str) -> Tuple[bool, str]:
         """
@@ -57,6 +87,17 @@ class ExcelProcessor:
                 # 导入部门数据
                 if 'department' in xls.sheet_names:
                     dept_df = pd.read_excel(xls, sheet_name='department')
+
+                    # 验证必需列
+                    is_valid, error_msg = self._validate_columns(dept_df, REQUIRED_DEPT_COLUMNS, 'department')
+                    if not is_valid:
+                        logger.warning("部门数据列验证失败", extra={"error": error_msg})
+                        return False, error_msg
+
+                    # 标准化列名为小写（仅在列名是字符串时）
+                    if not dept_df.empty and hasattr(dept_df.columns, 'str'):
+                        dept_df.columns = dept_df.columns.str.lower()
+
                     departments = []
                     for _, row in dept_df.iterrows():
                         dept = Department(
@@ -73,6 +114,17 @@ class ExcelProcessor:
                 # 导入员工数据
                 if 'employee' in xls.sheet_names:
                     emp_df = pd.read_excel(xls, sheet_name='employee')
+
+                    # 验证必需列
+                    is_valid, error_msg = self._validate_columns(emp_df, REQUIRED_EMP_COLUMNS, 'employee')
+                    if not is_valid:
+                        logger.warning("员工数据列验证失败", extra={"error": error_msg})
+                        return False, error_msg
+
+                    # 标准化列名为小写（仅在列名是字符串时）
+                    if not emp_df.empty and hasattr(emp_df.columns, 'str'):
+                        emp_df.columns = emp_df.columns.str.lower()
+
                     employees = []
                     for _, row in emp_df.iterrows():
                         emp = Employee(

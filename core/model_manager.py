@@ -556,8 +556,20 @@ class ModelManager:
             return f"错误: 未知的工具 '{name}'"
 
         try:
-            # 脱敏日志：移除可能的敏感信息
-            safe_args = {k: v for k, v in args.items() if not k.startswith("_")}
+            # 脱敏日志：移除可能的敏感信息和截断长字符串
+            def sanitize_value(v, max_len=200):
+                """脱敏值：截断长字符串，标记敏感内容"""
+                if isinstance(v, str):
+                    if len(v) > max_len:
+                        return f"[{len(v)} chars...]{v[-50:]}" if len(v) > 50 else f"[{len(v)} chars]"
+                    return v
+                elif isinstance(v, dict):
+                    return {k: sanitize_value(vv) for k, vv in v.items()}
+                elif isinstance(v, list):
+                    return [sanitize_value(vv) for vv in v[:5]]  # 只显示前5个元素
+                return v
+
+            safe_args = {k: sanitize_value(v) for k, v in args.items() if not k.startswith("_")}
             logger.info("执行工具", extra={"tool": name, "args": safe_args})
             executor = self._tool_executors[name]
             result = str(executor(**args))

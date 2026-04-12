@@ -101,14 +101,24 @@ class TestPPTGenerator:
 
     def test_generate_invalid_path(self, ppt_generator, sample_tree, sample_stats):
         """测试无效路径"""
+        import platform
+
+        # 使用真正无法写入的路径
+        if platform.system() == "Windows":
+            # Windows: 使用无效字符或受保护的目录
+            invalid_path = "Z:\\nonexistent_drive\\output.pptx"
+        else:
+            # Unix: 使用不存在的路径
+            invalid_path = "/nonexistent_drive/output.pptx"
+
         success, message = ppt_generator.generate(
             tree=sample_tree,
             stats=sample_stats,
-            output_path="/invalid/path/that/does/not/exist/output.pptx"
+            output_path=invalid_path
         )
 
         assert success is False
-        assert "失败" in message
+        assert "失败" in message or "不存在" in message
 
     def test_calculate_positions(self, ppt_generator, sample_tree):
         """测试节点位置计算"""

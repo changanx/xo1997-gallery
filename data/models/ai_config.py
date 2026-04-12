@@ -6,6 +6,10 @@ from typing import Optional, Dict, Any
 import sqlite3
 import json
 
+from app.common.logger import get_logger
+
+logger = get_logger()
+
 
 @dataclass
 class AIModelConfig:
@@ -29,8 +33,12 @@ class AIModelConfig:
         if row['extra_params']:
             try:
                 extra_params = json.loads(row['extra_params'])
-            except json.JSONDecodeError:
-                pass
+                if not isinstance(extra_params, dict):
+                    logger.warning("extra_params 不是有效的字典", extra={"value": str(extra_params)[:100]})
+                    extra_params = {}
+            except json.JSONDecodeError as e:
+                logger.warning("extra_params JSON 解析失败", extra={"error": str(e), "raw": str(row['extra_params'])[:100]})
+                extra_params = {}
 
         return cls(
             id=row['id'],
@@ -39,8 +47,8 @@ class AIModelConfig:
             model_name=row['model_name'] or "",
             api_key=row['api_key'] or "",
             base_url=row['base_url'] or "",
-            temperature=row['temperature'] or 0.7,
-            max_tokens=row['max_tokens'] or 2048,
+            temperature=float(row['temperature']) if row['temperature'] is not None else 0.7,
+            max_tokens=int(row['max_tokens']) if row['max_tokens'] is not None else 2048,
             extra_params=extra_params,
             is_default=bool(row['is_default']),
             is_enabled=bool(row['is_enabled']),
