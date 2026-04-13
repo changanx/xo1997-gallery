@@ -112,8 +112,8 @@ class GroupChatInterface(ScrollArea):
         self.newChatBtn.clicked.connect(self._newSession)
 
         self.clearBtn = TransparentToolButton(FIF.DELETE, self)
-        self.clearBtn.setToolTip("清空消息")
-        self.clearBtn.clicked.connect(self._clearMessages)
+        self.clearBtn.setToolTip("删除会话")
+        self.clearBtn.clicked.connect(self._deleteSession)
 
         toolbarLayout.addWidget(self.titleLabel)
         toolbarLayout.addWidget(self.sessionCombo)
@@ -372,6 +372,48 @@ class GroupChatInterface(ScrollArea):
 
         self._clearMessages()
         self._refreshParticipantsUI()
+
+    def _deleteSession(self):
+        """删除当前会话"""
+        if not self._current_session:
+            return
+
+        # 确认弹窗
+        msg = MessageBox(
+            "确认删除",
+            f"确定要删除会话「{self._current_session.title}」吗？\n此操作不可恢复。",
+            self
+        )
+        msg.yesButton.setText("删除")
+        msg.cancelButton.setText("取消")
+
+        if msg.exec():
+            session_id = self._current_session.id
+
+            # 从数据库删除
+            group_chat_manager.delete_session(session_id)
+
+            # 从列表中移除
+            self._sessions = [s for s in self._sessions if s.id != session_id]
+
+            # 更新下拉框
+            self.sessionCombo.blockSignals(True)
+            current_index = self.sessionCombo.currentIndex()
+            self.sessionCombo.removeItem(current_index)
+            self.sessionCombo.blockSignals(False)
+
+            # 切换到其他会话或创建新会话
+            if self._sessions:
+                self.sessionCombo.setCurrentIndex(0)
+                self._switchToSession(self._sessions[0].id)
+            else:
+                self._newSession()
+
+            InfoBar.success(
+                title="删除成功",
+                content="会话已删除",
+                parent=self
+            )
 
     def _clearMessages(self, keep_db: bool = False):
         """清空消息"""
