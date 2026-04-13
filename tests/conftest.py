@@ -23,7 +23,7 @@ def setup_test_storage():
     original_data_dir = original_config.data_dir
 
     # 使用临时目录作为测试数据存储
-    test_data_dir = tempfile.mkdtemp(prefix="hr-tools-test-")
+    test_data_dir = tempfile.mkdtemp(prefix="xo1997-gallery-test-")
 
     # 直接修改内存中的配置，不持久化到文件
     storage_config_manager._config = StorageConfig(data_dir=test_data_dir)

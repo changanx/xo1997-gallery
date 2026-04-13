@@ -47,7 +47,7 @@ class StorageConfigManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._config_dir: Path = Path.home() / ".hr-tools" / "config"
+        self._config_dir: Path = Path.home() / ".xo1997-gallery" / "config"
         self._config_file: Path = self._config_dir / "storage.json"
         self._config: StorageConfig = StorageConfig()
 
@@ -94,7 +94,7 @@ class StorageConfigManager(QObject):
 
     def get_database_path(self) -> Path:
         """获取数据库文件路径"""
-        return self._config.effective_data_dir / "hr-tools.db"
+        return self._config.effective_data_dir / "xo1997-gallery.db"
 
     def ensure_data_dir(self) -> Path:
         """确保数据目录存在"""
@@ -112,7 +112,7 @@ class StorageConfigManager(QObject):
         Returns:
             是否存在数据库文件
         """
-        db_file = path / "hr-tools.db"
+        db_file = path / "xo1997-gallery.db"
         return db_file.exists() and db_file.stat().st_size > 0
 
     def migrate_data(
@@ -132,8 +132,8 @@ class StorageConfigManager(QObject):
         Returns:
             (成功与否, 消息)
         """
-        old_db = old_path / "hr-tools.db"
-        new_db = new_path / "hr-tools.db"
+        old_db = old_path / "xo1997-gallery.db"
+        new_db = new_path / "xo1997-gallery.db"
 
         # 检查旧数据库是否存在
         if not old_db.exists():

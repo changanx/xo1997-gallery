@@ -308,46 +308,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hr-tools"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "langchain-anthropic" },
-    { name = "langchain-ollama" },
-    { name = "langchain-openai" },
-    { name = "openpyxl" },
-    { name = "pandas" },
-    { name = "pyside6" },
-    { name = "pyside6-fluent-widgets" },
-    { name = "python-dotenv" },
-    { name = "python-pptx" },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-cov" },
-    { name = "pytest-qt" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "langchain-anthropic", specifier = ">=0.1.0" },
-    { name = "langchain-ollama", specifier = ">=0.1.0" },
-    { name = "langchain-openai", specifier = ">=0.1.0" },
-    { name = "openpyxl", specifier = ">=3.1.0" },
-    { name = "pandas", specifier = ">=2.0.0" },
-    { name = "pyside6", specifier = ">=6.6.0" },
-    { name = "pyside6-fluent-widgets", specifier = ">=1.11.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
-    { name = "pytest-qt", marker = "extra == 'dev'", specifier = ">=4.2.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "python-pptx", specifier = ">=1.0.0" },
-]
-provides-extras = ["dev"]
-
-[[package]]
 name = "httpcore"
 version = "1.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -4555,6 +4515,46 @@ sdist = { url = "https://files.pythonhosted.org/packages/46/2c/c06ef49dc36e7954e
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3a/0c/3662f4a66880196a590b202f0db82d919dd2f89e99a27fadef91c4a33d41/xlsxwriter-3.2.9-py3-none-any.whl", hash = "sha256:9a5db42bc5dff014806c58a20b9eae7322a134abb6fce3c92c181bfb275ec5b3", size = 175315, upload-time = "2025-09-16T00:16:20.108Z" },
 ]
+
+[[package]]
+name = "xo1997-gallery"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "langchain-anthropic" },
+    { name = "langchain-ollama" },
+    { name = "langchain-openai" },
+    { name = "openpyxl" },
+    { name = "pandas" },
+    { name = "pyside6" },
+    { name = "pyside6-fluent-widgets" },
+    { name = "python-dotenv" },
+    { name = "python-pptx" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-cov" },
+    { name = "pytest-qt" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "langchain-anthropic", specifier = ">=0.1.0" },
+    { name = "langchain-ollama", specifier = ">=0.1.0" },
+    { name = "langchain-openai", specifier = ">=0.1.0" },
+    { name = "openpyxl", specifier = ">=3.1.0" },
+    { name = "pandas", specifier = ">=2.0.0" },
+    { name = "pyside6", specifier = ">=6.6.0" },
+    { name = "pyside6-fluent-widgets", specifier = ">=1.11.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pytest-qt", marker = "extra == 'dev'", specifier = ">=4.2.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "python-pptx", specifier = ">=1.0.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "xxhash"

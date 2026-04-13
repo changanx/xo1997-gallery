@@ -1,5 +1,5 @@
 """
-HR 工具箱 - 应用入口
+xo1997 画廊 - 应用入口
 """
 import sys
 import os
@@ -59,8 +59,8 @@ def init_default_model_config():
 
 
 # 单实例标识
-LOCAL_SERVER_NAME = "hr-tools-single-instance-server"
-MUTEX_NAME = "Global\\hr-tools-single-instance-mutex"
+LOCAL_SERVER_NAME = "xo1997-gallery-single-instance-server"
+MUTEX_NAME = "Global\\xo1997-gallery-single-instance-mutex"
 
 
 def create_mutex():
@@ -155,7 +155,7 @@ class SingleApplication(QApplication):
 
 def main():
     """应用程序入口"""
-    logger.info("HR 工具箱启动...")
+    logger.info("xo1997 画廊启动...")
 
     # 单实例检测（使用 Windows Mutex）
     mutex = create_mutex()
@@ -173,9 +173,9 @@ def main():
             socket.flush()
             socket.waitForBytesWritten(1000)
             socket.disconnectFromServer()
-            print("HR 工具箱已在运行，已激活已存在的窗口")
+            print("xo1997 画廊已在运行，已激活已存在的窗口")
         else:
-            print("HR 工具箱已在运行，请切换到已打开的窗口")
+            print("xo1997 画廊已在运行，请切换到已打开的窗口")
 
         return 0
 

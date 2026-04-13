@@ -68,7 +68,7 @@ class MainWindow(FluentWindow):
 
     def initWindow(self):
         """初始化窗口"""
-        self.setWindowTitle('HR 工具箱')
+        self.setWindowTitle('xo1997 画廊')
         self.resize(1200, 800)
         self.setMinimumSize(900, 600)
 

@@ -45,7 +45,7 @@ class LogConfigManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._config_dir: Path = Path.home() / ".hr-tools" / "config"
+        self._config_dir: Path = Path.home() / ".xo1997-gallery" / "config"
         self._config_file: Path = self._config_dir / "log_config.json"
         self._config: LogConfig = LogConfig()
 

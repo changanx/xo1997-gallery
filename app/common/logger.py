@@ -109,13 +109,13 @@ class LoggerManager:
         self._json_handler: Optional[TimedRotatingFileHandler] = None
         self._signal_handler: Optional[QtSignalHandler] = None
         self._current_level: int = logging.DEBUG
-        self._log_dir: Path = Path.home() / ".hr-tools" / "logs"
+        self._log_dir: Path = Path.home() / ".xo1997-gallery" / "logs"
         self._backup_count: int = 7
         self._initialized = True
 
     def setup(
         self,
-        name: str = "hr-tools",
+        name: str = "xo1997-gallery",
         level: int = logging.DEBUG,
         backup_count: int = 7,
         json_format: bool = True,
@@ -298,7 +298,7 @@ _manager = LoggerManager()
 
 
 def setup_logger(
-    name: str = "hr-tools",
+    name: str = "xo1997-gallery",
     level: int = logging.DEBUG,
     backup_count: int = 7,
     json_format: bool = True,

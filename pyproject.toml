@@ -1,7 +1,7 @@
 [project]
-name = "hr-tools"
+name = "xo1997-gallery"
 version = "0.1.0"
-description = "HR 工具箱 - Excel 员工数据导入生成组织架构 PPT"
+description = "xo1997 画廊 - AI 智能助手与组织架构生成工具"
 requires-python = ">=3.11"
 dependencies = [
     "PySide6>=6.6.0",

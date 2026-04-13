@@ -1,4 +1,4 @@
-# HR 工具箱
+# xo1997 画廊
 
 基于 PySide6 + QFluentWidgets 的桌面应用，集成 AI 智能助手和组织架构生成功能。
 
