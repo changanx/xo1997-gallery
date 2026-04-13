@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from .excel_ppt_interface import ExcelPPTInterface
 from .ai_chat_interface import AIChatInterface
 from .ai_settings_interface import AISettingsInterface
+from .general_settings_interface import GeneralSettingsInterface
 from .group_chat_interface import GroupChatInterface
 from app.components.log_viewer_window import LogViewerWindow
 
@@ -22,6 +23,7 @@ class MainWindow(FluentWindow):
         self.aiChatInterface = AIChatInterface(self)
         self.groupChatInterface = GroupChatInterface(self)
         self.aiSettingsInterface = AISettingsInterface(self)
+        self.generalSettingsInterface = GeneralSettingsInterface(self)
 
         # 创建日志窗口（独立窗口，不作为子窗口）
         self.logViewerWindow = LogViewerWindow()
@@ -44,17 +46,49 @@ class MainWindow(FluentWindow):
             FIF.PEOPLE,
             '群聊模式'
         )
+
+        # 添加工具箱菜单（可展开的父级菜单）
+        self.navigationInterface.addItem(
+            routeKey='toolbox',
+            icon=FIF.FOLDER,
+            text='工具箱',
+            selectable=False,
+            position=NavigationItemPosition.TOP
+        )
+
+        # PPT定制作为工具箱的子菜单
         self.addSubInterface(
             self.excelPptInterface,
             FIF.DOCUMENT,
-            'Excel→PPT'
+            'PPT定制',
+            parent='toolbox'
         )
+
         self.navigationInterface.addSeparator()
+
+        # 添加设置菜单（可展开的父级菜单）
+        self.navigationInterface.addItem(
+            routeKey='settings',
+            icon=FIF.SETTING,
+            text='设置',
+            selectable=False,
+            position=NavigationItemPosition.BOTTOM
+        )
+
+        # AI设置作为设置的子菜单
         self.addSubInterface(
             self.aiSettingsInterface,
-            FIF.SETTING,
+            FIF.ROBOT,
             'AI 设置',
-            position=NavigationItemPosition.BOTTOM
+            parent='settings'
+        )
+
+        # 通用设置作为设置的子菜单
+        self.addSubInterface(
+            self.generalSettingsInterface,
+            FIF.APPLICATION,
+            '通用设置',
+            parent='settings'
         )
 
         # 添加日志按钮到导航栏底部
