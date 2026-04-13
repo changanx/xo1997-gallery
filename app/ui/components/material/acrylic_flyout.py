@@ -23,11 +23,7 @@ class AcrylicFlyoutViewBase(AcrylicWidget, FlyoutViewBase):
         painter.setRenderHints(QPainter.Antialiasing)
         self._drawAcrylic(painter)
 
-        # draw border
-        painter.setBrush(Qt.NoBrush)
-        painter.setPen(self.borderColor())
-        rect = QRectF(self.rect()).adjusted(1, 1, -1, -1)
-        painter.drawRoundedRect(rect, 8, 8)
+        # 不绘制边框
 
 
 class AcrylicFlyoutView(AcrylicWidget, FlyoutView):

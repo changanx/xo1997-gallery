@@ -65,7 +65,7 @@ class FlyoutViewBase(QWidget):
         painter.setRenderHints(QPainter.Antialiasing)
 
         painter.setBrush(self.backgroundColor())
-        painter.setPen(self.borderColor())
+        painter.setPen(Qt.NoPen)  # 不绘制边框
 
         rect = self.rect().adjusted(1, 1, -1, -1)
         painter.drawRoundedRect(rect, 8, 8)
