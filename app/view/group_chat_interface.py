@@ -2,13 +2,14 @@
 群聊界面
 """
 import json
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 from datetime import datetime
 
-from PySide6.QtCore import Qt, Signal, QThread, Slot
+from PySide6.QtCore import Qt, Signal, QThread, Slot, QTimer, QEvent, QPoint
+from PySide6.QtGui import QTextCursor, QAction, QColor
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy,
-    QScrollArea, QFileDialog, QCheckBox
+    QScrollArea, QFileDialog, QListWidgetItem
 )
 
 from app.ui import (
@@ -17,11 +18,14 @@ from app.ui import (
     InfoBar, InfoBarPosition, LineEdit, TextEdit, ComboBox,
     FluentIcon as FIF, CardWidget, SimpleCardWidget, MessageBox
 )
+from app.ui.components.widgets.menu import RoundMenu, MenuAnimationType
+from app.ui.components.widgets.line_edit import IndicatorMenuItemDelegate
 
 from ..components.group_chat_message_widget import GroupChatMessageWidget
 from ..components.participant_edit_dialog import ParticipantEditDialog
 from ..common.logger import logger
 from core.group_chat_manager import group_chat_manager, ROLE_TEMPLATES
+from core.tts_service import tts_service
 from data.models.group_chat import GroupChatSession, GroupChatParticipant, GroupChatMessage
 from data.repositories.ai_config_repository import AIModelConfigRepository
 
@@ -67,12 +71,18 @@ class GroupChatInterface(ScrollArea):
         self._worker: Optional[GroupChatWorker] = None
         self._current_participant_id: Optional[int] = None  # 当前正在响应的参与者
         self._participant_widgets: Dict[int, GroupChatMessageWidget] = {}  # participant_id -> widget
-        self._mentioned_participants: Set[int] = set()  # @ 提及的参与者
         self._sessions: List[GroupChatSession] = []
+        self._mention_popup: Optional[RoundMenu] = None  # @ 提及弹出菜单
+        self._mention_start_pos: int = -1  # @ 符号在文本中的位置
 
         self._initUI()
         self._loadSessions()
         self._refreshParticipantsUI()
+
+        # 连接 TTS 信号
+        tts_service.playback_finished.connect(self._onTTSFinished)
+        tts_service.playback_error.connect(self._onTTSError)
+
         logger.info("群聊界面初始化完成")
 
     def _initUI(self):
@@ -181,32 +191,6 @@ class GroupChatInterface(ScrollArea):
         self.scrollLayout.addWidget(self.emptyLabel)
         self.scrollLayout.addStretch()
 
-        # @ 提及选择区域
-        mentionCard = SimpleCardWidget(self)
-        mentionLayout = QHBoxLayout(mentionCard)
-        mentionLayout.setContentsMargins(12, 8, 12, 8)
-        mentionLayout.setSpacing(8)
-
-        mentionLayout.addWidget(BodyLabel("@ 提及:", self))
-
-        self.mentionWidget = QWidget(self)
-        self.mentionWidgetLayout = QHBoxLayout(self.mentionWidget)
-        self.mentionWidgetLayout.setContentsMargins(0, 0, 0, 0)
-        self.mentionWidgetLayout.setSpacing(8)
-        self.mentionWidgetLayout.addStretch()
-
-        mentionLayout.addWidget(self.mentionWidget)
-
-        self.selectAllBtn = PushButton("全选", self)
-        self.selectAllBtn.setFixedWidth(60)
-        self.selectAllBtn.clicked.connect(self._selectAllMentions)
-        mentionLayout.addWidget(self.selectAllBtn)
-
-        self.clearMentionBtn = PushButton("清除", self)
-        self.clearMentionBtn.setFixedWidth(60)
-        self.clearMentionBtn.clicked.connect(self._clearMentions)
-        mentionLayout.addWidget(self.clearMentionBtn)
-
         # 输入区域
         inputCard = SimpleCardWidget(self)
         inputLayout = QHBoxLayout(inputCard)
@@ -217,6 +201,7 @@ class GroupChatInterface(ScrollArea):
         self.inputEdit.setPlaceholderText("输入消息... (@昵称 提及特定模型，不提及则全部回复)")
         self.inputEdit.setFixedHeight(80)
         self.inputEdit.installEventFilter(self)
+        self.inputEdit.textChanged.connect(self._onInputTextChanged)
 
         self.sendBtn = PrimaryPushButton(FIF.SEND, "发送", self)
         self.sendBtn.setFixedWidth(80)
@@ -237,7 +222,6 @@ class GroupChatInterface(ScrollArea):
         self.vBoxLayout.addLayout(toolbarLayout)
         self.vBoxLayout.addWidget(participantsCard)
         self.vBoxLayout.addWidget(self.scrollArea, 1)
-        self.vBoxLayout.addWidget(mentionCard)
         self.vBoxLayout.addWidget(inputCard)
 
         # 滚动设置
@@ -250,11 +234,36 @@ class GroupChatInterface(ScrollArea):
 
     def eventFilter(self, obj, event):
         """事件过滤器"""
-        from PySide6.QtCore import QEvent, Qt
-        if hasattr(self, 'inputEdit') and obj == self.inputEdit and event.type() == QEvent.KeyPress:
+        if not (hasattr(self, 'inputEdit') and obj == self.inputEdit):
+            return super().eventFilter(obj, event)
+
+        if event.type() == QEvent.KeyPress:
+            # 弹出菜单可见时的键盘导航
+            if self._mention_popup and self._mention_popup.isVisible():
+                if event.key() == Qt.Key_Escape:
+                    self._mention_popup.close()
+                    return True
+                if event.key() in (Qt.Key_Up, Qt.Key_Down):
+                    # 让菜单处理上下键导航
+                    return False
+                if event.key() in (Qt.Key_Enter, Qt.Key_Return):
+                    # 选择当前项
+                    current_item = self._mention_popup.view.currentItem()
+                    if current_item:
+                        self._onMentionSelected(current_item.text())
+                        self._mention_popup.close()
+                    return True
+                if event.key() == Qt.Key_Space:
+                    # 空格关闭菜单
+                    self._mention_popup.close()
+                    return False
+
+            # 原有的 Enter 发送逻辑（弹出菜单不可见时）
             if event.key() == Qt.Key_Return and not event.modifiers() & Qt.ShiftModifier:
-                self._sendMessage()
-                return True
+                if not (self._mention_popup and self._mention_popup.isVisible()):
+                    self._sendMessage()
+                    return True
+
         return super().eventFilter(obj, event)
 
     def _selectWorkDirectory(self):
@@ -435,25 +444,12 @@ class GroupChatInterface(ScrollArea):
             if item.widget():
                 item.widget().deleteLater()
 
-        while self.mentionWidgetLayout.count() > 1:
-            item = self.mentionWidgetLayout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-
-        self._mention_checkboxes = {}
         participants = group_chat_manager.get_participants()
 
         for p in participants:
             # 参与者卡片
             card = self._createParticipantCard(p)
             self.participantsLayout.insertWidget(self.participantsLayout.count() - 1, card)
-
-            # @ 提及复选框
-            cb = QCheckBox(p.nickname, self)
-            cb.setStyleSheet("color: #1976d2;")
-            cb.stateChanged.connect(lambda state, pid=p.id: self._onMentionChanged(pid, state))
-            self._mention_checkboxes[p.id] = cb
-            self.mentionWidgetLayout.insertWidget(self.mentionWidgetLayout.count() - 1, cb)
 
     def _createParticipantCard(self, participant: GroupChatParticipant) -> QWidget:
         """创建参与者卡片"""
@@ -549,7 +545,8 @@ class GroupChatInterface(ScrollArea):
                 participant_id=participant_id,
                 nickname=data["nickname"],
                 role_description=data["role_description"],
-                avatar=data.get("avatar")
+                avatar=data.get("avatar"),
+                fish_audio_voice_id=data.get("fish_audio_voice_id", "")
             )
             if updated:
                 self._refreshParticipantsUI()
@@ -559,26 +556,146 @@ class GroupChatInterface(ScrollArea):
         if group_chat_manager.remove_participant(participant_id):
             self._refreshParticipantsUI()
 
-    def _onMentionChanged(self, participant_id: int, state: int):
-        """@ 提及变化"""
-        if state == Qt.Checked:
-            self._mentioned_participants.add(participant_id)
+    # ==================== @ 提及弹出菜单 ====================
+
+    def _createMentionPopup(self) -> RoundMenu:
+        """创建 @ 提及弹出菜单"""
+        menu = RoundMenu("", self)
+        menu.setItemHeight(33)
+        menu.view.setItemDelegate(IndicatorMenuItemDelegate())
+        menu.view.setViewportMargins(0, 2, 0, 6)
+        menu.view.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # 减少阴影效果的模糊范围，避免透明边框
+        menu.setShadowEffect(blurRadius=15, offset=(0, 4), color=QColor(0, 0, 0, 50))
+        return menu
+
+    def _showMentionPopup(self):
+        """显示 @ 提及候选列表"""
+        try:
+            participants = group_chat_manager.get_participants()
+            logger.debug(f"_showMentionPopup: participants count={len(participants)}")
+            if not participants:
+                return
+
+            # 创建或重用弹出菜单
+            if not self._mention_popup:
+                self._mention_popup = self._createMentionPopup()
+                logger.debug("创建了新的 _mention_popup")
+
+            # 记录 @ 符号位置
+            cursor = self.inputEdit.textCursor()
+            self._mention_start_pos = cursor.position() - 1  # @ 符号的位置
+            logger.debug(f"_mention_start_pos={self._mention_start_pos}")
+
+            # 填充参与者列表
+            self._mention_popup.clear()
+            for p in participants:
+                action = QAction(p.nickname, self)
+                action.triggered.connect(lambda checked, nick=p.nickname: self._onMentionSelected(nick))
+                self._mention_popup.addAction(action)
+            logger.debug(f"添加了 {self._mention_popup.view.count()} 个菜单项")
+
+            # 计算弹出位置
+            cursor_rect = self.inputEdit.cursorRect(cursor)
+            global_pos = self.inputEdit.mapToGlobal(cursor_rect.bottomLeft())
+            global_pos.setY(global_pos.y() + 5)  # 稍微向下偏移
+            logger.debug(f"弹出位置: {global_pos}")
+
+            # 调整菜单大小
+            self._mention_popup.adjustSize()
+            if self._mention_popup.width() < 150:
+                self._mention_popup.setMinimumWidth(150)
+
+            # 显示菜单
+            logger.debug("准备调用 exec 显示菜单")
+            self._mention_popup.exec(global_pos, ani=True, aniType=MenuAnimationType.DROP_DOWN)
+            logger.debug("exec 调用完成")
+
+            # 设置初始选中项
+            if self._mention_popup.view.count() > 0:
+                self._mention_popup.view.setCurrentRow(0)
+        except Exception as e:
+            logger.error(f"_showMentionPopup 异常: {e}", exc_info=True)
+
+    def _filterMentionPopup(self, text: str):
+        """根据输入过滤候选列表"""
+        if not self._mention_popup or not self._mention_popup.isVisible():
+            return
+
+        # 获取 @ 后的文本
+        cursor = self.inputEdit.textCursor()
+        current_pos = cursor.position()
+
+        if self._mention_start_pos < 0 or current_pos <= self._mention_start_pos:
+            # 光标移动到 @ 之前，关闭菜单
+            self._mention_popup.close()
+            return
+
+        # 提取 @ 后的文本作为过滤条件
+        filter_text = text[self._mention_start_pos + 1:current_pos].lower()
+
+        participants = group_chat_manager.get_participants()
+
+        # 重新填充过滤后的列表
+        self._mention_popup.clear()
+        for p in participants:
+            nick = p.nickname.lstrip('@').lower()
+            if filter_text in nick:
+                action = QAction(p.nickname, self)
+                action.triggered.connect(lambda checked, nick=p.nickname: self._onMentionSelected(nick))
+                self._mention_popup.addAction(action)
+
+        # 如果没有匹配项，关闭菜单
+        if self._mention_popup.view.count() == 0:
+            self._mention_popup.close()
         else:
-            self._mentioned_participants.discard(participant_id)
+            self._mention_popup.view.setCurrentRow(0)
 
-    def _selectAllMentions(self):
-        """全选提及"""
-        for cb in self._mention_checkboxes.values():
-            cb.setChecked(True)
+    def _onMentionSelected(self, nickname: str):
+        """选择提及后的处理"""
+        cursor = self.inputEdit.textCursor()
+        current_pos = cursor.position()
 
-    def _clearMentions(self):
-        """清除提及"""
-        # 先清空集合，再更新复选框（避免触发 _onMentionChanged 再次修改集合）
-        self._mentioned_participants.clear()
-        for cb in self._mention_checkboxes.values():
-            cb.blockSignals(True)  # 阻塞信号
-            cb.setChecked(False)
-            cb.blockSignals(False)  # 恢复信号
+        # 选中从 @ 到当前位置的文本
+        cursor.setPosition(self._mention_start_pos, QTextCursor.MoveAnchor)
+        cursor.setPosition(current_pos, QTextCursor.KeepAnchor)
+
+        # 替换为完整昵称（确保以 @ 开头）
+        if not nickname.startswith('@'):
+            nickname = '@' + nickname
+
+        cursor.insertText(nickname + ' ')  # 添加空格分隔
+
+        # 关闭菜单
+        if self._mention_popup:
+            self._mention_popup.close()
+
+        # 重置状态
+        self._mention_start_pos = -1
+
+    def _onInputTextChanged(self):
+        """输入文本变化时的处理"""
+        text = self.inputEdit.toPlainText()
+        cursor = self.inputEdit.textCursor()
+        current_pos = cursor.position()
+
+        logger.debug(f"_onInputTextChanged: text='{text}', pos={current_pos}")
+
+        # 检查是否需要显示或过滤 @ 提及菜单
+        if self._mention_popup and self._mention_popup.isVisible():
+            # 检查光标是否还在 @ 提示范围内
+            if self._mention_start_pos >= 0 and current_pos > self._mention_start_pos:
+                self._filterMentionPopup(text)
+            else:
+                self._mention_popup.close()
+                self._mention_start_pos = -1
+        else:
+            # 检测新输入的 @ 符号
+            if current_pos > 0 and len(text) >= current_pos and text[current_pos - 1] == '@':
+                # 检查 @ 是否在单词边界（前面是空格或行首）
+                if current_pos == 1 or text[current_pos - 2] in (' ', '\n'):
+                    logger.debug(f"检测到 @ 输入，准备显示弹出菜单")
+                    QTimer.singleShot(0, self._showMentionPopup)
 
     def _scrollToBottom(self):
         """滚动到底部"""
@@ -614,8 +731,8 @@ class GroupChatInterface(ScrollArea):
             )
             return
 
-        # 解析 @ 提及
-        mentioned_ids = list(self._mentioned_participants) if self._mentioned_participants else None
+        # 解析 @ 提及（从文本中解析）
+        mentioned_ids = group_chat_manager.parse_mentions(content, participants)
 
         # 添加用户消息
         self._addMessage("user", content)
@@ -652,12 +769,14 @@ class GroupChatInterface(ScrollArea):
             participant_id = chunk.get("participant_id")
             nickname = chunk.get("nickname", "AI")
             avatar = chunk.get("avatar", "ROBOT")
+            fish_audio_voice_id = chunk.get("fish_audio_voice_id", "")
 
             # 创建新的消息 widget
             widget = self._addMessage("assistant", "", {
                 "id": participant_id,
                 "nickname": nickname,
-                "avatar": avatar
+                "avatar": avatar,
+                "fish_audio_voice_id": fish_audio_voice_id
             })
             self._participant_widgets[participant_id] = widget
             self._current_participant_id = participant_id
@@ -676,7 +795,11 @@ class GroupChatInterface(ScrollArea):
             participant_id = chunk.get("participant_id")
             content = chunk.get("content", "")
             if participant_id in self._participant_widgets:
-                self._participant_widgets[participant_id].setContent(content)
+                widget = self._participant_widgets[participant_id]
+                widget.setContent(content)
+
+                # 尝试自动播放 TTS
+                self._tryAutoPlayTTS(widget)
 
         elif msg_type == "thinking":
             participant_id = chunk.get("participant_id", self._current_participant_id)
@@ -745,3 +868,44 @@ class GroupChatInterface(ScrollArea):
             "ROCKET": "🚀",
         }
         return avatar_map.get(avatar_name, "🤖")
+
+    def _tryAutoPlayTTS(self, widget: GroupChatMessageWidget):
+        """尝试自动播放 TTS"""
+        # 获取主窗口来访问通用设置
+        from PySide6.QtWidgets import QApplication
+        main_window = QApplication.instance().activeWindow()
+        if not main_window:
+            # 尝试从父窗口链获取
+            parent = self.parent()
+            while parent:
+                if hasattr(parent, 'generalSettingsInterface'):
+                    main_window = parent
+                    break
+                parent = parent.parent()
+
+        if main_window and hasattr(main_window, 'generalSettingsInterface'):
+            settings = main_window.generalSettingsInterface
+            if settings.get_auto_play_tts():
+                voice_id = widget.get_model_info().get("fish_audio_voice_id")
+                if voice_id:
+                    participant_id = widget.get_model_info().get("id")
+                    tts_service.play(widget.get_content(), voice_id, participant_id)
+
+    @Slot(int)
+    def _onTTSFinished(self, participant_id: int):
+        """TTS 播放完成"""
+        if participant_id in self._participant_widgets:
+            self._participant_widgets[participant_id].set_playing_state(False)
+
+    @Slot(int, str)
+    def _onTTSError(self, participant_id: int, error_msg: str):
+        """TTS 播放错误"""
+        if participant_id in self._participant_widgets:
+            self._participant_widgets[participant_id].set_playing_state(False)
+
+        InfoBar.warning(
+            title="语音播放失败",
+            content=error_msg,
+            duration=3000,
+            parent=self
+        )

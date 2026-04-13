@@ -5,7 +5,7 @@ import logging
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout
+    QWidget, QVBoxLayout, QHBoxLayout, QLineEdit
 )
 
 from app.ui import (
@@ -13,6 +13,7 @@ from app.ui import (
     PushButton, InfoBar, ComboBox, SpinBox,
     CardWidget, FluentIcon as FIF
 )
+from app.ui.components.settings.setting_card import SettingCard, SwitchSettingCard
 
 from app.common.logger import set_level, set_backup_count, get_log_dir
 from app.common.log_config import log_config_manager
@@ -35,13 +36,16 @@ class GeneralSettingsInterface(ScrollArea):
 
         # 标题
         self.titleLabel = TitleLabel("通用设置", self)
-        self.subtitleLabel = SubtitleLabel("日志和数据存储配置", self)
+        self.subtitleLabel = SubtitleLabel("日志、数据存储和语音配置", self)
 
         # 日志配置区域
         self._initLogConfigUI()
 
         # 存储配置区域
         self._initStorageConfigUI()
+
+        # TTS 配置区域
+        self._initTTSConfigUI()
 
         # 布局
         self.vBoxLayout.setSpacing(20)
@@ -52,6 +56,7 @@ class GeneralSettingsInterface(ScrollArea):
         self.vBoxLayout.addWidget(self.subtitleLabel)
         self.vBoxLayout.addWidget(self.logConfigCard)
         self.vBoxLayout.addWidget(self.storageConfigCard)
+        self.vBoxLayout.addWidget(self.ttsConfigCard)
         self.vBoxLayout.addStretch()
 
         # 滚动设置
@@ -294,3 +299,118 @@ class GeneralSettingsInterface(ScrollArea):
                 parent=self,
                 duration=5000
             )
+
+    def _initTTSConfigUI(self):
+        """初始化 TTS 配置 UI"""
+        from core.tts_service import tts_service
+        import json
+        from pathlib import Path
+
+        self.ttsConfigCard = CardWidget(self)
+        layout = QVBoxLayout(self.ttsConfigCard)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(16)
+
+        # 标题
+        titleLabel = SubtitleLabel("语音设置 (TTS)", self)
+        layout.addWidget(titleLabel)
+
+        # Fish Audio API Key
+        apiKeyLayout = QHBoxLayout()
+        apiKeyLayout.addWidget(BodyLabel("Fish Audio API Key:"))
+
+        self.fishApiKeyEdit = QLineEdit(self)
+        self.fishApiKeyEdit.setEchoMode(QLineEdit.Password)
+        self.fishApiKeyEdit.setPlaceholderText("输入 Fish Audio API Key")
+        self.fishApiKeyEdit.setText(tts_service.api_key)
+        self.fishApiKeyEdit.setMinimumWidth(300)
+        self.fishApiKeyEdit.textChanged.connect(self._onFishApiKeyChanged)
+        apiKeyLayout.addWidget(self.fishApiKeyEdit, 1)
+        layout.addLayout(apiKeyLayout)
+
+        # 自动播放开关
+        autoPlayLayout = QHBoxLayout()
+        autoPlayLayout.addWidget(BodyLabel("自动播放语音:"))
+
+        self.autoPlaySwitch = SwitchSettingCard(
+            FIF.VOLUME,
+            "自动播放语音",
+            "AI 回复完成后自动播放语音",
+            parent=self
+        )
+        # 获取保存的设置
+        self._loadTTSSettings()
+        self.autoPlaySwitch.setChecked(self._auto_play_tts)
+        self.autoPlaySwitch.checkedChanged.connect(self._onAutoPlayChanged)
+        layout.addWidget(self.autoPlaySwitch)
+
+        # 提示
+        tipLabel = BodyLabel("提示: 需要在群聊参与者配置中设置音色 ID 才能播放语音", self)
+        tipLabel.setStyleSheet("color: #999; font-size: 11px;")
+        layout.addWidget(tipLabel)
+
+        # 获取 Fish Audio 音色链接
+        linkLayout = QHBoxLayout()
+        linkLabel = BodyLabel("获取音色 ID: ", self)
+        linkLayout.addWidget(linkLabel)
+
+        from PySide6.QtWidgets import QLabel
+        fishLink = QLabel('<a href="https://fish.audio">fish.audio</a>')
+        fishLink.setOpenExternalLinks(True)
+        linkLayout.addWidget(fishLink)
+        linkLayout.addStretch()
+        layout.addLayout(linkLayout)
+
+    def _loadTTSSettings(self):
+        """加载 TTS 设置"""
+        import json
+        from pathlib import Path
+
+        self._auto_play_tts = False
+
+        config_file = Path.home() / ".xo1997-gallery" / "config" / "tts.json"
+        if config_file.exists():
+            try:
+                with open(config_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self._auto_play_tts = data.get("auto_play", False)
+                    from core.tts_service import tts_service
+                    tts_service.api_key = data.get("fish_api_key", "")
+            except:
+                pass
+
+    def _saveTTSSettings(self):
+        """保存 TTS 设置"""
+        import json
+        from pathlib import Path
+
+        config_dir = Path.home() / ".xo1997-gallery" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        config_file = config_dir / "tts.json"
+
+        data = {
+            "auto_play": self._auto_play_tts,
+            "fish_api_key": self.fishApiKeyEdit.text()
+        }
+
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+    def _onFishApiKeyChanged(self, text: str):
+        """Fish Audio API Key 改变"""
+        from core.tts_service import tts_service
+        tts_service.api_key = text
+        self._saveTTSSettings()
+
+    def _onAutoPlayChanged(self, checked: bool):
+        """自动播放设置改变"""
+        self._auto_play_tts = checked
+        self._saveTTSSettings()
+
+    def get_auto_play_tts(self) -> bool:
+        """获取自动播放 TTS 设置"""
+        return self._auto_play_tts
+
+    def get_fish_api_key(self) -> str:
+        """获取 Fish Audio API Key"""
+        return self.fishApiKeyEdit.text()

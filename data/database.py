@@ -254,7 +254,13 @@ class PersistentDatabase:
             conn.execute("ALTER TABLE group_chat_participant ADD COLUMN avatar TEXT DEFAULT 'ROBOT'")
             conn.commit()
 
-        # 2. 检查是否需要迁移（group_chat_participant 是否有 session_id 列）
+        # 2. 添加 fish_audio_voice_id 字段（如果不存在）
+        if 'fish_audio_voice_id' not in columns:
+            logger.info("添加群聊参与者 fish_audio_voice_id 字段")
+            conn.execute("ALTER TABLE group_chat_participant ADD COLUMN fish_audio_voice_id TEXT DEFAULT ''")
+            conn.commit()
+
+        # 3. 检查是否需要迁移（group_chat_participant 是否有 session_id 列）
         if 'session_id' in columns:
             logger.info("迁移群聊数据库结构：参与者改为全局配置")
 

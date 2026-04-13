@@ -99,9 +99,16 @@ class ParticipantEditDialog(MessageBoxBase):
         self.roleLabel = BodyLabel("角色描述:", self)
         self.roleEdit = TextEdit(self)
         self.roleEdit.setPlaceholderText("描述这个模型在群聊中的角色和职责...")
-        self.roleEdit.setFixedHeight(150)
+        self.roleEdit.setFixedHeight(100)
         self.viewLayout.addWidget(self.roleLabel)
         self.viewLayout.addWidget(self.roleEdit)
+
+        # Fish Audio 音色 ID
+        self.voiceIdLabel = BodyLabel("Fish Audio 音色 ID:", self)
+        self.voiceIdEdit = LineEdit(self)
+        self.voiceIdEdit.setPlaceholderText("可选：输入 Fish Audio 音色 ID 用于语音播放")
+        self.viewLayout.addWidget(self.voiceIdLabel)
+        self.viewLayout.addWidget(self.voiceIdEdit)
 
         # 设置按钮文本
         self.yesButton.setText("确定")
@@ -142,6 +149,9 @@ class ParticipantEditDialog(MessageBoxBase):
         # 角色描述
         self.roleEdit.setPlainText(self._participant.role_description)
 
+        # Fish Audio 音色 ID
+        self.voiceIdEdit.setText(self._participant.fish_audio_voice_id or "")
+
     def _onModelChanged(self, index: int):
         """模型选择变化"""
         if index < 0 or index >= len(self._models):
@@ -181,4 +191,5 @@ class ParticipantEditDialog(MessageBoxBase):
             "nickname": self.nicknameEdit.text().strip(),
             "role_description": self.roleEdit.toPlainText().strip(),
             "avatar": avatar,
+            "fish_audio_voice_id": self.voiceIdEdit.text().strip(),
         }

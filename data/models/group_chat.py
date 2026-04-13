@@ -50,6 +50,7 @@ class GroupChatParticipant:
     nickname: str = ""                      # 群聊中的昵称（如 @gpt4）
     role_description: str = ""              # 角色描述
     avatar: str = "ROBOT"                   # 头像图标名称（FluentIcon）
+    fish_audio_voice_id: str = ""           # Fish Audio 音色 ID
     created_at: str = ""                    # 创建时间
 
     @classmethod
@@ -61,6 +62,7 @@ class GroupChatParticipant:
             nickname=row['nickname'] or "",
             role_description=row['role_description'] or "",
             avatar=row['avatar'] or "ROBOT",
+            fish_audio_voice_id=row['fish_audio_voice_id'] or "",
             created_at=row['created_at'] or "",
         )
 
@@ -72,6 +74,7 @@ class GroupChatParticipant:
             'nickname': self.nickname,
             'role_description': self.role_description,
             'avatar': self.avatar,
+            'fish_audio_voice_id': self.fish_audio_voice_id,
             'created_at': self.created_at,
         }
 

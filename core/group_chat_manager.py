@@ -191,7 +191,8 @@ class GroupChatManager:
         participant_id: int,
         nickname: str = None,
         role_description: str = None,
-        avatar: str = None
+        avatar: str = None,
+        fish_audio_voice_id: str = None
     ) -> Optional[GroupChatParticipant]:
         """更新参与者信息"""
         participant = self._participant_repo.find_by_id(participant_id)
@@ -204,6 +205,8 @@ class GroupChatManager:
             participant.role_description = role_description
         if avatar is not None:
             participant.avatar = avatar
+        if fish_audio_voice_id is not None:
+            participant.fish_audio_voice_id = fish_audio_voice_id
 
         participant = self._participant_repo.save(participant)
 
@@ -528,7 +531,8 @@ class GroupChatManager:
                         "type": "model_response_start",
                         "participant_id": participant.id,
                         "nickname": participant.nickname,
-                        "avatar": participant.avatar
+                        "avatar": participant.avatar,
+                        "fish_audio_voice_id": participant.fish_audio_voice_id
                     }
 
                     try:

@@ -21,7 +21,7 @@ class GroupChatMessageWidget(QWidget):
         Args:
             role: "user" 或 "assistant"
             content: 消息内容
-            model_info: {"id": int, "name": str, "nickname": str, "avatar": str}
+            model_info: {"id": int, "name": str, "nickname": str, "avatar": str, "fish_audio_voice_id": str}
         """
         super().__init__(parent)
         self._role = role
@@ -29,6 +29,8 @@ class GroupChatMessageWidget(QWidget):
         self._model_info = model_info or {}
         self._thinking = ""
         self._tool_calls = []
+        self._is_playing = False
+        self._ttsBtn = None
 
         self._initUI()
 
@@ -138,13 +140,23 @@ class GroupChatMessageWidget(QWidget):
 
         cardLayout.addWidget(self.contentLabel)
 
-        # 底部：复制按钮
+        # 底部：按钮区域
         footerLayout = QHBoxLayout()
         footerLayout.addStretch()
 
+        # TTS 播放按钮（仅 AI 消息）
+        if not is_user:
+            self._ttsBtn = TransparentToolButton(FIF.VOLUME, self)
+            self._ttsBtn.setFixedSize(24, 24)
+            self._ttsBtn.clicked.connect(self._toggleTTS)
+            self._ttsBtn.setToolTip("播放语音")
+            footerLayout.addWidget(self._ttsBtn)
+
+        # 复制按钮
         copyBtn = TransparentToolButton(FIF.COPY, self)
         copyBtn.setFixedSize(24, 24)
         copyBtn.clicked.connect(self._copyContent)
+        copyBtn.setToolTip("复制内容")
         footerLayout.addWidget(copyBtn)
 
         cardLayout.addLayout(footerLayout)
@@ -290,3 +302,35 @@ class GroupChatMessageWidget(QWidget):
             "ROCKET": "🚀",
         }
         return avatar_map.get(avatar_name, "🤖")
+
+    def _toggleTTS(self):
+        """切换 TTS 播放状态"""
+        from core.tts_service import tts_service
+
+        voice_id = self._model_info.get("fish_audio_voice_id")
+        participant_id = self._model_info.get("id")
+
+        if self._is_playing:
+            # 停止播放
+            tts_service.stop()
+            self.set_playing_state(False)
+        else:
+            # 开始播放
+            if voice_id and participant_id:
+                success = tts_service.play(self._content, voice_id, participant_id)
+                if success:
+                    self.set_playing_state(True)
+            elif not voice_id:
+                # 提示用户配置音色
+                pass
+
+    def set_playing_state(self, is_playing: bool):
+        """设置播放状态"""
+        self._is_playing = is_playing
+        if self._ttsBtn:
+            self._ttsBtn.setIcon(FIF.PAUSE if is_playing else FIF.VOLUME)
+            self._ttsBtn.setToolTip("暂停" if is_playing else "播放语音")
+
+    def get_content(self) -> str:
+        """获取消息内容"""
+        return self._content
