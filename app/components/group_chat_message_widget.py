@@ -7,7 +7,7 @@ from typing import Optional, Dict
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSizePolicy
 
-from qfluentwidgets import (
+from app.ui import (
     SimpleCardWidget, BodyLabel, CaptionLabel, TextEdit,
     FluentIcon as FIF, TransparentToolButton, AvatarWidget
 )

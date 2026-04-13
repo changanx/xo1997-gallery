@@ -4,7 +4,7 @@
 from pathlib import Path
 from typing import Optional
 
-from qfluentwidgets import CardWidget, LineEdit, PushButton, FluentIcon
+from app.ui import CardWidget, LineEdit, PushButton, FluentIcon
 from PySide6.QtWidgets import QHBoxLayout, QFileDialog
 from PySide6.QtCore import Signal
 

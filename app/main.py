@@ -14,7 +14,7 @@ load_dotenv()
 from PySide6.QtWidgets import QApplication, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from qfluentwidgets import setTheme, Theme
+from app.ui import setTheme, Theme
 
 from app.view.main_window import MainWindow
 from app.common.logger import logger

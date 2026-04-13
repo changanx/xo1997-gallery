@@ -7,7 +7,7 @@ from typing import Optional
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout
 
-from qfluentwidgets import (
+from app.ui import (
     ScrollArea, TitleLabel, SubtitleLabel, BodyLabel,
     PrimaryPushButton, PushButton, InfoBar, InfoBarPosition,
     FluentIcon as FIF

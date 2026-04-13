@@ -1,7 +1,7 @@
 """
 主窗口
 """
-from qfluentwidgets import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
+from app.ui import FluentWindow, FluentIcon as FIF, setTheme, Theme, NavigationItemPosition
 from PySide6.QtCore import Qt
 
 from .excel_ppt_interface import ExcelPPTInterface

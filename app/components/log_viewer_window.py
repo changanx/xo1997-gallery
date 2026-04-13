@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QTextCursor, QColor, QTextCharFormat
 
-from qfluentwidgets import (
+from app.ui import (
     MessageBoxBase, SubtitleLabel, PushButton as FluentPushButton,
     FluentIcon as FIF
 )

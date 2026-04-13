@@ -6,7 +6,7 @@ from typing import Optional, List
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy
 
-from qfluentwidgets import (
+from app.ui import (
     MessageBoxBase, SubtitleLabel, BodyLabel, LineEdit,
     ComboBox, PushButton, TextEdit, FluentIcon as FIF, AvatarWidget
 )

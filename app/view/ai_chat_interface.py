@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QFileDialog
 )
 
-from qfluentwidgets import (
+from app.ui import (
     ScrollArea, TitleLabel, SubtitleLabel, BodyLabel,
     PrimaryPushButton, PushButton, TransparentToolButton, ToolButton,
     InfoBar, InfoBarPosition, LineEdit, TextEdit, ComboBox,

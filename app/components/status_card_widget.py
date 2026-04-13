@@ -1,7 +1,7 @@
 """
 状态卡片组件
 """
-from qfluentwidgets import SimpleCardWidget, CaptionLabel, TitleLabel
+from app.ui import SimpleCardWidget, CaptionLabel, TitleLabel
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtCore import Qt
 

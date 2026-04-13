@@ -1,0 +1,12 @@
+This project includes code from PySide6-Fluent-Widgets
+
+Copyright (c) 2021 zhiyiYo
+Licensed under GPLv3
+
+Source: https://github.com/zhiyiYo/PyQt-Fluent-Widgets
+
+The following files are derived from PySide6-Fluent-Widgets:
+- app/ui/common/
+- app/ui/components/
+- app/ui/window/
+- app/ui/_rc/

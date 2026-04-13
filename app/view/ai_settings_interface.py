@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QSpacerItem, QSizePolicy
 )
 
-from qfluentwidgets import (
+from app.ui import (
     ScrollArea, TitleLabel, SubtitleLabel, BodyLabel,
     PrimaryPushButton, PushButton, TransparentToolButton, ToolButton,
     InfoBar, InfoBarPosition, LineEdit, ComboBox, SpinBox, DoubleSpinBox,
